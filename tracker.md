@@ -120,13 +120,13 @@ Build a general-purpose public-web lead scraper engine that accepts a keyword, l
 - [x] Optional JSON/CSV output
 
 ### Phase 13 — Live Web Smoke Test
-- [ ] Run real doctor + Shahjahanpur search
-- [ ] Verify discovery
-- [ ] Verify fetching
-- [ ] Verify parsing
-- [ ] Verify normalization
-- [ ] Verify deduplication
-- [ ] Verify terminal output
+- [x] Run real doctor + Shahjahanpur search
+- [x] Verify discovery
+- [x] Verify fetching
+- [x] Verify parsing
+- [x] Verify normalization
+- [x] Verify deduplication
+- [x] Verify terminal output
 
 ### Phase 14 — Robustness
 - [ ] Handle 404 responses
