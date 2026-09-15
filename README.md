@@ -549,16 +549,13 @@ The CLI is available both as the installed `general-scraper` command and as `pyt
 
 ## Project Status
 
-The core scraping pipeline is implemented through Phase 14 robustness work.
+The core scraping pipeline, documentation, packaging, and release validation are implemented through Phase 17.
 
 Current development phase:
 
-**Phase 15 — Documentation**
+**Phase 17 — Final Test & Release Audit**
 
-Planned next phases:
-
-* Phase 16 — Packaging
-* Phase 17 — Final Test & Release Audit
+The project is undergoing final V1 release checks.
 
 ## License
 

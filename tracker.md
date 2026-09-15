@@ -165,13 +165,13 @@ Build a general-purpose public-web lead scraper engine that accepts a keyword, l
 - [x] Verify package installation
 
 ### Phase 17 — Final Test & Release Audit
-- [ ] Run full pytest suite
-- [ ] Run Python compile checks
-- [ ] Run CLI smoke test
-- [ ] Run live-web smoke test
-- [ ] Run git diff --check
-- [ ] Review documentation
-- [ ] Review scope boundaries
+- [x] Run full pytest suite
+- [x] Run Python compile checks
+- [x] Run CLI smoke test
+- [x] Run live-web smoke test
+- [x] Run git diff --check
+- [x] Review documentation
+- [x] Review scope boundaries
 - [ ] Commit final V1
 - [ ] Push final V1
 
@@ -191,9 +191,8 @@ Pytest configuration   [x]
 Normalizer tests       [x]
 Real discovery         [x]
 Relevance              [x]
-CLI                    [ ]
-Live smoke test        [ ]
-Hardening              [ ]
-Documentation          [ ]
-Packaging              [ ]
+CLI                    [x]
+Live smoke test        [x]
+Documentation          [x]
+Packaging              [x]
 Final release          [ ]
