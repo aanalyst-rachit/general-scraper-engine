@@ -11,7 +11,7 @@ Build a general-purpose public-web lead scraper engine that accepts a keyword, l
 - Keyword + location + optional requirements
 - Discovery → Fetch → Parse → Normalize → Deduplicate → Output
 - No login, CAPTCHA, private-page, or access-control bypass
-- No UI, dashboard, database, CRM, or authentication in V1
+- No UI, dashboard, or authentication in V1; optional DuckDB persistence is supported
 - No PyLage integration in V1
 
 ## Roadmap
@@ -146,17 +146,17 @@ Build a general-purpose public-web lead scraper engine that accepts a keyword, l
 - [x] Ensure engine does not crash on individual failures
 
 ### Phase 15 — Documentation
-- [ ] Write README
-- [ ] Document installation
-- [ ] Document quick start
-- [ ] Document CLI usage
-- [ ] Document architecture
-- [ ] Document discovery providers
-- [ ] Document Lead schema
-- [ ] Document public-web rules
-- [ ] Document robots policy
-- [ ] Add examples
-- [ ] Document limitations
+- [x] Write README
+- [x] Document installation
+- [x] Document quick start
+- [x] Document CLI usage
+- [x] Document architecture
+- [x] Document discovery providers
+- [x] Document Lead schema
+- [x] Document public-web rules
+- [x] Document robots policy
+- [x] Add examples
+- [x] Document limitations
 
 ### Phase 16 — Packaging
 - [ ] Create/update pyproject.toml
