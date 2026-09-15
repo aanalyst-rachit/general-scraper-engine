@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 
 from scraper.database.repository import LeadRepository
 from scraper.discovery import DiscoveredPage, SearchRequest, WebDiscovery
+from scraper.acquisition import AutoFetcher, FetchRequest, HTTPFetcherAdapter
 from scraper.fetcher import FetchedPage, PageFetcher
 from scraper.models import Lead
 from scraper.normalizer import LeadNormalizer
@@ -42,9 +43,9 @@ class ScraperEngine:
     def __init__(
         self,
         discovery: WebDiscovery,
-        fetcher: PageFetcher,
         parser: PageParser,
         normalizer: LeadNormalizer,
+        fetcher: PageFetcher | None = None,
         quality: LeadQuality | None = None,
         relevance: KeywordRelevance | None = None,
         location_relevance: LocationRelevance | None = None,
@@ -54,6 +55,11 @@ class ScraperEngine:
     ) -> None:
         self.discovery = discovery
         self.fetcher = fetcher
+        self.acquisition = (
+            AutoFetcher()
+            if fetcher is None
+            else HTTPFetcherAdapter(fetcher)
+        )
         self.parser = parser
         self.normalizer = normalizer
         self.quality = quality or LeadQuality()
@@ -92,7 +98,7 @@ class ScraperEngine:
             if self.requirements_relevance is not None and not self.requirements_relevance.is_relevant(candidate):
                 continue
 
-            page = self.fetcher.fetch(candidate.url)
+            page = self.acquisition.fetch(FetchRequest(candidate.url))
 
             if not page.ok:
                 fetched.append(page)
@@ -167,7 +173,7 @@ def scrape(
 ) -> ScrapeResult:
     engine = ScraperEngine(
         discovery=discovery,
-        fetcher=fetcher or PageFetcher(),
+        fetcher=fetcher,
         parser=parser or PageParser(),
         normalizer=normalizer or LeadNormalizer(),
         relevance=relevance,

@@ -636,3 +636,62 @@ def test_engine_continues_after_individual_fetch_failure():
     assert result.fetch_failures[0].url == failed_url
     assert result.fetch_failures[0].error == "HTTP 500"
     assert result.count == 2
+
+def test_engine_uses_auto_acquisition_when_fetcher_is_not_supplied(monkeypatch):
+    from scraper import engine as engine_module
+
+    url = 'https://example.com/auto'
+
+    class AutoDouble:
+        instances = []
+
+        def __init__(self):
+            self.calls = []
+            self.__class__.instances.append(self)
+
+        def fetch(self, request):
+            self.calls.append(request.url)
+            return FetchedPage(
+                url=request.url,
+                final_url=request.url,
+                status_code=200,
+                content_type='text/html',
+                html=(
+                    '<html><head><title>Auto Doctor</title></head>'
+                    '<body>'
+                    '<p>Auto Doctor</p>'
+                    '<p>+91 98765 43210</p>'
+                    '<p>auto.doctor@example.com</p>'
+                    '<address>Main Road, Shahjahanpur, Uttar Pradesh</address>'
+                    '</body></html>'
+                ),
+            )
+
+    class Discovery:
+        def discover(self, request):
+            return [
+                DiscoveredPage(
+                    url=url,
+                    title='Auto Doctor',
+                    source_name='Directory',
+                )
+            ]
+
+    monkeypatch.setattr(engine_module, 'AutoFetcher', AutoDouble)
+
+    result = ScraperEngine(
+        discovery=Discovery(),
+        parser=PageParser(),
+        normalizer=LeadNormalizer(),
+    ).run(
+        SearchRequest(
+            keyword='doctor',
+            location='Shahjahanpur',
+            limit=10,
+        )
+    )
+
+    assert len(AutoDouble.instances) == 1
+    assert AutoDouble.instances[0].calls == [url]
+    assert result.count == 1
+    assert result.fetch_failures == []

@@ -1,0 +1,22 @@
+<!doctype html>
+<html>
+<head>
+  <title>Browser Interaction Fixture</title>
+</head>
+<body>
+  <button id="reveal">Reveal</button>
+  <div id="result"></div>
+
+  <section id="scroll-target" style="margin-top: 1200px;">
+    <h1>Scrolled Content</h1>
+    <p>Content available after controlled scrolling.</p>
+  </section>
+
+  <script>
+    document.getElementById("reveal").addEventListener("click", () => {
+      document.getElementById("result").innerHTML =
+        "<p id='revealed'>Revealed after click</p>";
+    });
+  </script>
+</body>
+</html>

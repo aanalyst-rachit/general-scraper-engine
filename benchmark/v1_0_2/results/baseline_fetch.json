@@ -1,0 +1,128 @@
+{
+  "benchmark": "v1.0.2",
+  "mode": "sequential_fetch_baseline",
+  "base_url": "http://127.0.0.1:8766",
+  "cases": 9,
+  "successful_fetches": 8,
+  "failed_fetches": 1,
+  "total_content_bytes": 2212,
+  "failure_categories": {
+    "http": 1
+  },
+  "expectation_mismatches": [],
+  "total_ms": 1008.034,
+  "mean_fetch_ms": 111.985,
+  "median_fetch_ms": 66.84,
+  "min_fetch_ms": 55.984,
+  "max_fetch_ms": 324.974,
+  "records": [
+    {
+      "name": "static_valid",
+      "url": "http://127.0.0.1:8766/static",
+      "expected_status": 200,
+      "expected_success": true,
+      "status_code": 200,
+      "ok": true,
+      "elapsed_ms": 220.99,
+      "content_bytes": 267,
+      "error": "",
+      "failure_category": null
+    },
+    {
+      "name": "structured_jsonld",
+      "url": "http://127.0.0.1:8766/structured",
+      "expected_status": 200,
+      "expected_success": true,
+      "status_code": 200,
+      "ok": true,
+      "elapsed_ms": 64.001,
+      "content_bytes": 599,
+      "error": "",
+      "failure_category": null
+    },
+    {
+      "name": "thin_content",
+      "url": "http://127.0.0.1:8766/thin",
+      "expected_status": 200,
+      "expected_success": true,
+      "status_code": 200,
+      "ok": true,
+      "elapsed_ms": 85.306,
+      "content_bytes": 81,
+      "error": "",
+      "failure_category": null
+    },
+    {
+      "name": "http_error",
+      "url": "http://127.0.0.1:8766/error",
+      "expected_status": 500,
+      "expected_success": false,
+      "status_code": 500,
+      "ok": false,
+      "elapsed_ms": 66.84,
+      "content_bytes": 0,
+      "error": "HTTP 500",
+      "failure_category": "http"
+    },
+    {
+      "name": "slow_response",
+      "url": "http://127.0.0.1:8766/slow",
+      "expected_status": 200,
+      "expected_success": true,
+      "status_code": 200,
+      "ok": true,
+      "elapsed_ms": 324.974,
+      "content_bytes": 197,
+      "error": "",
+      "failure_category": null
+    },
+    {
+      "name": "repeated_url",
+      "url": "http://127.0.0.1:8766/static",
+      "expected_status": 200,
+      "expected_success": true,
+      "status_code": 200,
+      "ok": true,
+      "elapsed_ms": 55.984,
+      "content_bytes": 267,
+      "error": "",
+      "failure_category": null
+    },
+    {
+      "name": "multi_1",
+      "url": "http://127.0.0.1:8766/multi/1",
+      "expected_status": 200,
+      "expected_success": true,
+      "status_code": 200,
+      "ok": true,
+      "elapsed_ms": 57.565,
+      "content_bytes": 267,
+      "error": "",
+      "failure_category": null
+    },
+    {
+      "name": "multi_2",
+      "url": "http://127.0.0.1:8766/multi/2",
+      "expected_status": 200,
+      "expected_success": true,
+      "status_code": 200,
+      "ok": true,
+      "elapsed_ms": 73.267,
+      "content_bytes": 267,
+      "error": "",
+      "failure_category": null
+    },
+    {
+      "name": "multi_3",
+      "url": "http://127.0.0.1:8766/multi/3",
+      "expected_status": 200,
+      "expected_success": true,
+      "status_code": 200,
+      "ok": true,
+      "elapsed_ms": 58.941,
+      "content_bytes": 267,
+      "error": "",
+      "failure_category": null
+    }
+  ]
+}

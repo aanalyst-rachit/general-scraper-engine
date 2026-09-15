@@ -9,3 +9,4 @@ dist/
 
 .pypi_token
 site/
+.venv-playwright-rnd/
