@@ -78,6 +78,53 @@ def test_fetch_rejects_blocked_by_robots():
     assert result.error == "blocked by robots.txt"
 
 
+def test_concurrent_fetches_enforce_robots_policy(monkeypatch):
+    import threading
+
+    fetcher = PageFetcher()
+    calls = []
+    lock = threading.Lock()
+
+    def blocked(url):
+        return False
+
+    fetcher._allowed = blocked
+
+    class Client:
+        def __init__(self, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def get(self, url):
+            with lock:
+                calls.append(url)
+            raise AssertionError("blocked request reached HTTP client")
+
+    monkeypatch.setattr("scraper.fetcher.httpx.Client", Client)
+
+    results = []
+
+    def fetch(index):
+        results.append(fetcher.fetch(f"https://example.com/private-{index}"))
+
+    threads = [threading.Thread(target=fetch, args=(index,)) for index in range(4)]
+
+    for thread in threads:
+        thread.start()
+
+    for thread in threads:
+        thread.join()
+
+    assert len(results) == 4
+    assert all(result.error == "blocked by robots.txt" for result in results)
+    assert calls == []
+
+
 def test_fetch_successful_html(monkeypatch):
     response = FakeResponse(
         status_code=200,
@@ -391,6 +438,64 @@ def test_per_domain_limit_is_independent_per_domain(monkeypatch):
     }
 
 
+def test_per_domain_request_limit_is_atomic_across_concurrent_fetches(monkeypatch):
+    import threading
+
+    fetcher = PageFetcher(max_requests_per_domain=2)
+    fetcher._allowed = lambda url: True
+
+    class Response:
+        status_code = 200
+        url = "https://example.com/page"
+        text = "<html><body>ok</body></html>"
+
+        class Headers:
+            def get(self, name, default=""):
+                return "text/html"
+
+        headers = Headers()
+
+    started = threading.Event()
+    release = threading.Event()
+
+    class Client:
+        def __init__(self, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def get(self, url):
+            started.set()
+            release.wait(timeout=2)
+            return Response()
+
+    monkeypatch.setattr("scraper.fetcher.httpx.Client", Client)
+
+    results = []
+
+    def fetch():
+        results.append(fetcher.fetch("https://example.com/page"))
+
+    threads = [threading.Thread(target=fetch) for _ in range(4)]
+
+    for thread in threads:
+        thread.start()
+
+    assert started.wait(timeout=2)
+    release.set()
+
+    for thread in threads:
+        thread.join()
+
+    assert fetcher._domain_request_counts["example.com"] == 2
+    assert sum(result.ok for result in results) == 2
+    assert sum(result.error == "per-domain request limit reached" for result in results) == 2
+
+
 def test_per_domain_limit_does_not_count_robots_block(monkeypatch):
     fetcher = PageFetcher(max_requests_per_domain=1)
     fetcher._allowed = lambda url: False
@@ -591,3 +696,78 @@ def test_fetch_follows_redirect_and_records_final_url(monkeypatch):
     assert captured["follow_redirects"] is True
     assert result.ok is True
     assert result.final_url == "https://example.com/final"
+
+
+def test_request_delay_is_enforced_across_concurrent_fetches(monkeypatch):
+    import threading
+    import time
+
+    fetcher = PageFetcher(request_delay=0.05)
+
+    monkeypatch.setattr(
+        fetcher,
+        "_allowed",
+        lambda url: True,
+    )
+
+    class Response:
+        status_code = 200
+        url = "https://example.com/page"
+        text = "<html><body>ok</body></html>"
+
+        class Headers:
+            def get(self, name, default=""):
+                return "text/html"
+
+        headers = Headers()
+
+    class Client:
+        def __init__(self, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def get(self, url):
+            return Response()
+
+    monkeypatch.setattr("scraper.fetcher.httpx.Client", Client)
+
+    request_times = []
+    lock = threading.Lock()
+
+    original_wait = fetcher._wait_for_request_delay
+
+    def tracked_wait(url):
+        original_wait(url)
+        with lock:
+            request_times.append(time.monotonic())
+
+    monkeypatch.setattr(fetcher, "_wait_for_request_delay", tracked_wait)
+
+    threads = [
+        threading.Thread(
+            target=fetcher.fetch,
+            args=(f"https://example.com/page-{index}",),
+        )
+        for index in range(4)
+    ]
+
+    for thread in threads:
+        thread.start()
+
+    for thread in threads:
+        thread.join()
+
+    assert len(request_times) == 4
+
+    request_times.sort()
+    intervals = [
+        later - earlier
+        for earlier, later in zip(request_times, request_times[1:])
+    ]
+
+    assert min(intervals) >= 0.045

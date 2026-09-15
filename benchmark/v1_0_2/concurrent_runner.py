@@ -4,7 +4,7 @@ import json
 import statistics
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from scraper.concurrency import BoundedExecutor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -56,10 +56,8 @@ def run(base_url="http://127.0.0.1:8766", concurrency=4):
     started = time.perf_counter()
     records = []
 
-    with ThreadPoolExecutor(max_workers=concurrency) as executor:
-        futures = [executor.submit(process, case) for case in workload]
-        for future in as_completed(futures):
-            records.append(future.result())
+    with BoundedExecutor(concurrency) as executor:
+        records = executor.map(process, workload)
 
     total_ms = (time.perf_counter() - started) * 1000
     records.sort(key=lambda record: record["name"])
@@ -87,7 +85,7 @@ def run(base_url="http://127.0.0.1:8766", concurrency=4):
         "records": records,
     }
 
-    output = ROOT / "benchmark" / "v1_0_2" / "results" / "concurrent_c4.json"
+    output = ROOT / "benchmark" / "v1_0_2" / "results" / f"concurrent_c{concurrency}.json"
     output.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
 
     print("===== V1.0.2 CONCURRENT BASELINE =====")

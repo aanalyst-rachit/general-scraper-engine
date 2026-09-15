@@ -6,6 +6,7 @@ from scraper.normalizer import LeadNormalizer
 from scraper.parser import PageParser
 
 
+from scraper.concurrency import ConcurrencyConfig
 class FakeDiscovery:
     def discover(self, request):
         assert request.keyword == "doctor"
@@ -694,4 +695,343 @@ def test_engine_uses_auto_acquisition_when_fetcher_is_not_supplied(monkeypatch):
     assert len(AutoDouble.instances) == 1
     assert AutoDouble.instances[0].calls == [url]
     assert result.count == 1
+    assert result.fetch_failures == []
+
+
+def test_engine_bounds_concurrent_fetches():
+    import threading
+    import time
+
+    active = 0
+    maximum = 0
+    lock = threading.Lock()
+
+    class ConcurrentDiscovery:
+        def discover(self, request):
+            return [
+                DiscoveredPage(
+                    url=f"https://example.com/page-{index}",
+                    title=f"Doctor {index}",
+                    source_name="Directory",
+                )
+                for index in range(8)
+            ]
+
+    class ConcurrentFetcher:
+        def fetch(self, url):
+            nonlocal active, maximum
+
+            with lock:
+                active += 1
+                maximum = max(maximum, active)
+
+            time.sleep(0.04)
+
+            with lock:
+                active -= 1
+
+            return FetchedPage(
+                url=url,
+                final_url=url,
+                status_code=200,
+                content_type="text/html",
+                html=(
+                    "<html><head><title>Doctor</title></head>"
+                    "<body><p>Doctor</p>"
+                    "<p>+91 98765 43210</p>"
+                    "<p>doctor@example.com</p>"
+                    "<address>Shahjahanpur</address></body></html>"
+                ),
+            )
+
+    engine = ScraperEngine(
+        discovery=ConcurrentDiscovery(),
+        fetcher=ConcurrentFetcher(),
+        parser=PageParser(),
+        normalizer=LeadNormalizer(),
+        max_concurrency=3,
+    )
+
+    result = engine.run(
+        SearchRequest(
+            keyword="doctor",
+            location="Shahjahanpur",
+            limit=8,
+        )
+    )
+
+    assert maximum <= 3
+    assert maximum == 3
+    assert len(result.fetched) == 8
+    assert result.fetch_failures == []
+
+
+def test_engine_isolates_unexpected_fetch_exceptions():
+    class Discovery:
+        def discover(self, request):
+            return [
+                DiscoveredPage(
+                    url="https://example.com/crash",
+                    title="Crash",
+                ),
+                DiscoveredPage(
+                    url="https://example.com/good",
+                    title="Good Doctor",
+                ),
+            ]
+
+    class Fetcher:
+        def fetch(self, url):
+            if url.endswith("/crash"):
+                raise RuntimeError("connection exploded")
+
+            return FetchedPage(
+                url=url,
+                final_url=url,
+                status_code=200,
+                content_type="text/html",
+                html=(
+                    "<html><head><title>Good Doctor</title></head>"
+                    "<body><p>Good Doctor</p>"
+                    "<p>+91 98765 43210</p>"
+                    "<p>good@example.com</p>"
+                    "<address>Shahjahanpur</address></body></html>"
+                ),
+            )
+
+    result = ScraperEngine(
+        discovery=Discovery(),
+        fetcher=Fetcher(),
+        parser=PageParser(),
+        normalizer=LeadNormalizer(),
+        max_concurrency=2,
+    ).run(
+        SearchRequest(
+            keyword="doctor",
+            location="Shahjahanpur",
+            limit=10,
+        )
+    )
+
+    assert len(result.fetched) == 2
+    assert len(result.fetch_failures) == 1
+    assert result.fetch_failures[0].url == "https://example.com/crash"
+    assert "connection exploded" in result.fetch_failures[0].error
+    assert result.count == 1
+
+def test_engine_uses_concurrency_config_global_limit():
+    import threading
+    import time
+
+    active = 0
+    maximum = 0
+    lock = threading.Lock()
+
+    class Discovery:
+        def discover(self, request):
+            return [
+                DiscoveredPage(
+                    url=f"https://example.com/config-page-{index}",
+                    title=f"Doctor {index}",
+                )
+                for index in range(6)
+            ]
+
+    class Fetcher:
+        def fetch(self, url):
+            nonlocal active, maximum
+
+            with lock:
+                active += 1
+                maximum = max(maximum, active)
+
+            time.sleep(0.03)
+
+            with lock:
+                active -= 1
+
+            return FetchedPage(
+                url=url,
+                final_url=url,
+                status_code=200,
+                content_type="text/html",
+                html=(
+                    "<html><head><title>Doctor</title></head>"
+                    "<body><p>Doctor</p>"
+                    "<p>+91 98765 43210</p>"
+                    "<p>doctor@example.com</p>"
+                    "<address>Shahjahanpur</address></body></html>"
+                ),
+            )
+
+    engine = ScraperEngine(
+        discovery=Discovery(),
+        fetcher=Fetcher(),
+        parser=PageParser(),
+        normalizer=LeadNormalizer(),
+        max_concurrency=ConcurrencyConfig(global_limit=2),
+    )
+
+    result = engine.run(
+        SearchRequest(
+            keyword="doctor",
+            location="Shahjahanpur",
+            limit=6,
+        )
+    )
+
+    assert maximum <= 2
+    assert maximum == 2
+    assert len(result.fetched) == 6
+    assert result.fetch_failures == []
+
+
+
+def test_engine_bounds_concurrent_fetches_per_domain():
+    import threading
+    import time
+
+    active = 0
+    maximum = 0
+    lock = threading.Lock()
+
+    class Discovery:
+        def discover(self, request):
+            return [
+                DiscoveredPage(
+                    url=f"https://example.com/domain-page-{index}",
+                    title=f"Doctor {index}",
+                )
+                for index in range(6)
+            ]
+
+    class Fetcher:
+        def fetch(self, url):
+            nonlocal active, maximum
+
+            with lock:
+                active += 1
+                maximum = max(maximum, active)
+
+            time.sleep(0.04)
+
+            with lock:
+                active -= 1
+
+            return FetchedPage(
+                url=url,
+                final_url=url,
+                status_code=200,
+                content_type="text/html",
+                html=(
+                    "<html><head><title>Doctor</title></head>"
+                    "<body><p>Doctor</p>"
+                    "<p>+91 98765 43210</p>"
+                    "<p>doctor@example.com</p>"
+                    "<address>Shahjahanpur</address></body></html>"
+                ),
+            )
+
+    engine = ScraperEngine(
+        discovery=Discovery(),
+        fetcher=Fetcher(),
+        parser=PageParser(),
+        normalizer=LeadNormalizer(),
+        max_concurrency=ConcurrencyConfig(
+            global_limit=4,
+            per_domain_limit=2,
+        ),
+    )
+
+    result = engine.run(
+        SearchRequest(
+            keyword="doctor",
+            location="Shahjahanpur",
+            limit=6,
+        )
+    )
+
+    assert maximum <= 2
+    assert maximum == 2
+    assert len(result.fetched) == 6
+    assert result.fetch_failures == []
+
+
+def test_engine_allows_independent_domains_to_run_concurrently():
+    import threading
+    import time
+    from urllib.parse import urlparse
+
+    active_by_domain = {}
+    maximum_by_domain = {}
+    lock = threading.Lock()
+
+    class Discovery:
+        def discover(self, request):
+            return [
+                DiscoveredPage(
+                    url=f"https://one.example/page-{index}",
+                    title=f"Doctor One {index}",
+                )
+                for index in range(2)
+            ] + [
+                DiscoveredPage(
+                    url=f"https://two.example/page-{index}",
+                    title=f"Doctor Two {index}",
+                )
+                for index in range(2)
+            ]
+
+    class Fetcher:
+        def fetch(self, url):
+            domain = urlparse(url).netloc
+
+            with lock:
+                active_by_domain[domain] = active_by_domain.get(domain, 0) + 1
+                maximum_by_domain[domain] = max(
+                    maximum_by_domain.get(domain, 0),
+                    active_by_domain[domain],
+                )
+
+            time.sleep(0.05)
+
+            with lock:
+                active_by_domain[domain] -= 1
+
+            return FetchedPage(
+                url=url,
+                final_url=url,
+                status_code=200,
+                content_type="text/html",
+                html=(
+                    "<html><head><title>Doctor</title></head>"
+                    "<body><p>Doctor</p>"
+                    "<p>+91 98765 43210</p>"
+                    "<p>doctor@example.com</p>"
+                    "<address>Shahjahanpur</address></body></html>"
+                ),
+            )
+
+    engine = ScraperEngine(
+        discovery=Discovery(),
+        fetcher=Fetcher(),
+        parser=PageParser(),
+        normalizer=LeadNormalizer(),
+        max_concurrency=ConcurrencyConfig(
+            global_limit=4,
+            per_domain_limit=2,
+        ),
+    )
+
+    result = engine.run(
+        SearchRequest(
+            keyword="doctor",
+            location="Shahjahanpur",
+            limit=4,
+        )
+    )
+
+    assert maximum_by_domain["one.example"] == 2
+    assert maximum_by_domain["two.example"] == 2
+    assert len(result.fetched) == 4
     assert result.fetch_failures == []

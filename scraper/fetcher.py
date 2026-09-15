@@ -1,4 +1,6 @@
 import time
+from collections import defaultdict
+from threading import Lock
 from dataclasses import dataclass
 from urllib.parse import urlparse
 from urllib.robotparser import RobotFileParser
@@ -46,6 +48,8 @@ class PageFetcher:
         self._robots_errors: dict[str, str] = {}
         self._last_request_at: dict[str, float] = {}
         self._domain_request_counts: dict[str, int] = {}
+        self._domain_request_locks: defaultdict[str, Lock] = defaultdict(Lock)
+        self._request_delay_locks: defaultdict[str, Lock] = defaultdict(Lock)
 
     def _robots_for(self, url: str) -> RobotFileParser:
         parsed = urlparse(url)
@@ -88,17 +92,19 @@ class PageFetcher:
             return
 
         parsed = urlparse(url)
-        origin = f'{parsed.scheme}://{parsed.netloc}'
-        now = time.monotonic()
-        last_request = self._last_request_at.get(origin)
+        origin = f"{parsed.scheme}://{parsed.netloc}"
 
-        if last_request is not None:
-            remaining = delay - (now - last_request)
-            if remaining > 0:
-                time.sleep(remaining)
-                now = time.monotonic()
+        with self._request_delay_locks[origin]:
+            now = time.monotonic()
+            last_request = self._last_request_at.get(origin)
 
-        self._last_request_at[origin] = now
+            if last_request is not None:
+                remaining = delay - (now - last_request)
+                if remaining > 0:
+                    time.sleep(remaining)
+                    now = time.monotonic()
+
+            self._last_request_at[origin] = now
 
     def _wait_for_crawl_delay(self, url: str) -> None:
         self._wait_for_request_delay(url)
@@ -118,18 +124,17 @@ class PageFetcher:
     def _domain_for(self, url: str) -> str:
         return urlparse(url).netloc
 
-    def _domain_limit_reached(self, url: str) -> bool:
+    def _reserve_domain_request(self, url: str) -> bool:
         if self.max_requests_per_domain is None:
-            return False
+            return True
 
         domain = self._domain_for(url)
-        return self._domain_request_counts.get(domain, 0) >= self.max_requests_per_domain
-
-    def _record_domain_request(self, url: str) -> None:
-        domain = self._domain_for(url)
-        self._domain_request_counts[domain] = (
-            self._domain_request_counts.get(domain, 0) + 1
-        )
+        with self._domain_request_locks[domain]:
+            count = self._domain_request_counts.get(domain, 0)
+            if count >= self.max_requests_per_domain:
+                return False
+            self._domain_request_counts[domain] = count + 1
+            return True
 
     def fetch(self, url: str) -> FetchedPage:
         url = url.strip()
@@ -160,15 +165,13 @@ class PageFetcher:
             last_retryable_result: FetchedPage | None = None
 
             for attempt in range(self.max_retries + 1):
-                if self._domain_limit_reached(url):
+                if not self._reserve_domain_request(url):
                     if last_retryable_result is not None:
                         return last_retryable_result
                     return FetchedPage(
                         url=url,
                         error="per-domain request limit reached",
                     )
-
-                self._record_domain_request(url)
                 self._wait_for_request_delay(url)
 
                 try:

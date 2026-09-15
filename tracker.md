@@ -60,13 +60,18 @@ This tracker is the locked v1.0.2 implementation scope. Competitor features from
 
 ## PHASE 4 — Async / Bounded Concurrency
 
-- [ ] Introduce bounded async execution
-- [ ] Define global concurrency limit
-- [ ] Define per-domain concurrency limit
+- [x] Introduce bounded async execution
+- [x] Define global concurrency limit
+- [x] Define per-domain concurrency limit
 - [ ] Define provider concurrency limit
-- [ ] Ensure robots/request-delay policy remains enforced
-- [ ] Benchmark sequential vs concurrent fetch performance
-- [ ] Avoid unbounded asyncio tasks
+- [x] Ensure robots/request-delay policy remains enforced
+- [x] Benchmark sequential vs concurrent fetch performance
+  - Canonical `benchmark/v1_0_2` workload: 26 cases, 25 fetch successes, 1 fetch failure, 25 valid leads, 6751 content bytes.
+  - Fresh sequential baseline: 1921.253 ms.
+  - Bounded concurrency 4: 2300.985 ms (0.83x vs baseline).
+  - Bounded concurrency 8: 1547.554 ms (1.24x vs baseline; 1.49x vs C4).
+  - Benchmark runner uses production `scraper.concurrency.BoundedExecutor`; C4/C8 results are independently recorded.
+- [x] Avoid unbounded asyncio tasks
 
 ## PHASE 5 — Discovery Provider Routing
 

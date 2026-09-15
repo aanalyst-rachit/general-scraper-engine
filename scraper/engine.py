@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from urllib.parse import urlparse
 
 from scraper.database.repository import LeadRepository
+from scraper.concurrency import BoundedExecutor, ConcurrencyConfig, DomainConcurrencyLimiter
 from scraper.discovery import DiscoveredPage, SearchRequest, WebDiscovery
 from scraper.acquisition import AutoFetcher, FetchRequest, HTTPFetcherAdapter
 from scraper.fetcher import FetchedPage, PageFetcher
@@ -52,6 +54,7 @@ class ScraperEngine:
         category_relevance: CategoryRelevance | None = None,
         requirements_relevance: RequirementsRelevance | None = None,
         repository: LeadRepository | None = None,
+        max_concurrency: int | ConcurrencyConfig = 4,
     ) -> None:
         self.discovery = discovery
         self.fetcher = fetcher
@@ -69,6 +72,36 @@ class ScraperEngine:
         self.requirements_relevance = requirements_relevance
         self.repository = repository
 
+        if isinstance(max_concurrency, ConcurrencyConfig):
+            self.concurrency = max_concurrency
+        else:
+            self.concurrency = ConcurrencyConfig(global_limit=max_concurrency)
+
+        # Backward-compatible alias
+        self.max_concurrency = self.concurrency.global_limit
+
+    def _fetch_candidate(
+        self,
+        candidate: DiscoveredPage,
+        domain_limiter: DomainConcurrencyLimiter | None = None,
+    ) -> FetchedPage:
+        semaphore = None
+
+        try:
+            if domain_limiter is not None:
+                domain = urlparse(candidate.url).netloc.lower()
+                semaphore = domain_limiter.acquire(domain)
+
+            return self.acquisition.fetch(FetchRequest(candidate.url))
+        except Exception as exc:
+            return FetchedPage(
+                url=candidate.url,
+                error=str(exc),
+            )
+        finally:
+            if semaphore is not None:
+                semaphore.release()
+
     def run(self, request: SearchRequest) -> ScrapeResult:
         existing_leads: list[Lead] = []
 
@@ -85,6 +118,8 @@ class ScraperEngine:
         parsed_leads: list[Lead] = []
         parse_failures: list[ParseFailure] = []
 
+        candidates: list[DiscoveredPage] = []
+
         for candidate in discovered:
             if self.relevance is not None and not self.relevance.is_relevant(candidate):
                 continue
@@ -98,8 +133,21 @@ class ScraperEngine:
             if self.requirements_relevance is not None and not self.requirements_relevance.is_relevant(candidate):
                 continue
 
-            page = self.acquisition.fetch(FetchRequest(candidate.url))
+            candidates.append(candidate)
 
+        domain_limiter = (
+            DomainConcurrencyLimiter(self.concurrency.per_domain_limit)
+            if self.concurrency.per_domain_limit is not None
+            else None
+        )
+
+        with BoundedExecutor(self.concurrency.global_limit) as executor:
+            pages = executor.map(
+                lambda candidate: self._fetch_candidate(candidate, domain_limiter),
+                candidates,
+            )
+
+        for candidate, page in zip(candidates, pages):
             if not page.ok:
                 fetched.append(page)
                 fetch_failures.append(
