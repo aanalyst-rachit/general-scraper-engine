@@ -274,3 +274,40 @@ def test_parse_does_not_use_source_url_as_business_website():
     assert lead is not None
     assert lead.website == ""
     assert lead.source_url == "https://directory.example.com/abc-clinic"
+
+
+def test_parse_returns_none_for_empty_html():
+    page = FetchedPage(
+        url="https://example.com/empty",
+        final_url="https://example.com/empty",
+        status_code=200,
+        content_type="text/html",
+        html="",
+    )
+
+    assert PageParser().parse(page) is None
+
+
+def test_parse_handles_malformed_html():
+    page = make_page(
+        "<html><head><title>Broken Clinic</title><body><div><p>Clinic without closed tags"
+    )
+
+    lead = PageParser().parse(page)
+
+    assert lead is not None
+    assert lead.name == "Broken Clinic"
+
+
+def test_parse_ignores_invalid_json_ld_and_uses_html_fallback():
+    page = make_page(
+        "<html><head>"
+        '<script type="application/ld+json">{invalid json</script>'
+        "<title>Fallback Clinic</title>"
+        "</head><body>Clinic</body></html>"
+    )
+
+    lead = PageParser().parse(page)
+
+    assert lead is not None
+    assert lead.name == "Fallback Clinic"

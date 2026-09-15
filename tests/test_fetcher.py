@@ -529,3 +529,65 @@ def test_retry_attempts_count_against_domain_limit(monkeypatch):
     assert result.error == "request timeout"
     assert len(calls) == 2
     assert fetcher._domain_request_counts["example.com"] == 2
+
+
+def test_fetch_handles_forbidden_403(monkeypatch):
+    response = FakeResponse(status_code=403, content_type="text/html", text="<html>Forbidden</html>")
+
+    monkeypatch.setattr(
+        "scraper.fetcher.httpx.Client",
+        lambda **kwargs: FakeClient(response=response, **kwargs),
+    )
+
+    fetcher = PageFetcher(max_retries=3)
+    fetcher._allowed = lambda url: True
+
+    result = fetcher.fetch("https://example.com/forbidden")
+
+    assert result.ok is False
+    assert result.status_code == 403
+    assert result.error == "HTTP 403"
+
+
+def test_fetch_handles_rate_limited_429(monkeypatch):
+    response = FakeResponse(status_code=429, content_type="text/html", text="<html>Too Many Requests</html>")
+
+    monkeypatch.setattr(
+        "scraper.fetcher.httpx.Client",
+        lambda **kwargs: FakeClient(response=response, **kwargs),
+    )
+
+    fetcher = PageFetcher(max_retries=3)
+    fetcher._allowed = lambda url: True
+
+    result = fetcher.fetch("https://example.com/rate-limited")
+
+    assert result.ok is False
+    assert result.status_code == 429
+    assert result.error == "HTTP 429"
+
+
+def test_fetch_follows_redirect_and_records_final_url(monkeypatch):
+    response = FakeResponse(
+        status_code=200,
+        content_type="text/html",
+        text="<html><body>Redirected Page</body></html>",
+        url="https://example.com/final",
+    )
+
+    captured = {}
+
+    def make_client(**kwargs):
+        captured.update(kwargs)
+        return FakeClient(response=response, **kwargs)
+
+    monkeypatch.setattr("scraper.fetcher.httpx.Client", make_client)
+
+    fetcher = PageFetcher()
+    fetcher._allowed = lambda url: True
+
+    result = fetcher.fetch("https://example.com/start")
+
+    assert captured["follow_redirects"] is True
+    assert result.ok is True
+    assert result.final_url == "https://example.com/final"

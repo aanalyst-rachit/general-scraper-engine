@@ -559,3 +559,80 @@ def test_engine_reads_existing_leads_from_repository():
         }
     ]
     assert result.existing_leads == [existing]
+
+
+def test_engine_continues_after_individual_fetch_failure():
+    failed_url = "https://example.com/failed"
+    first_good_url = "https://example.com/good-1"
+    second_good_url = "https://example.com/good-2"
+
+    class MixedDiscovery:
+        def discover(self, request):
+            return [
+                DiscoveredPage(url=failed_url, title="Failed"),
+                DiscoveredPage(url=first_good_url, title="First Doctor"),
+                DiscoveredPage(url=second_good_url, title="Second Doctor"),
+            ]
+
+    class MixedFetcher:
+        def __init__(self):
+            self.fetched = []
+
+        def fetch(self, url):
+            self.fetched.append(url)
+
+            if url == failed_url:
+                return FetchedPage(
+                    url=url,
+                    final_url=url,
+                    status_code=500,
+                    content_type="text/html",
+                    error="HTTP 500",
+                )
+
+            name = (
+                "First Doctor"
+                if url == first_good_url
+                else "Second Doctor"
+            )
+
+            return FetchedPage(
+                url=url,
+                final_url=url,
+                status_code=200,
+                content_type="text/html",
+                html=(
+                    f"<html><head><title>{name}</title></head>"
+                    f"<body><p>{name}</p>"
+                    f"<p>{"+91 98765 43210" if url == first_good_url else "+91 98765 43211"}</p>"
+                    f"<p>{name.lower().replace(' ', '.')}@example.com</p>"
+                    f"<address>Main Road, Shahjahanpur, Uttar Pradesh</address>"
+                    f"</body></html>"
+                ),
+            )
+
+    fetcher = MixedFetcher()
+
+    result = ScraperEngine(
+        discovery=MixedDiscovery(),
+        fetcher=fetcher,
+        parser=PageParser(),
+        normalizer=LeadNormalizer(),
+    ).run(
+        SearchRequest(
+            keyword="doctor",
+            location="Shahjahanpur",
+            limit=10,
+        )
+    )
+
+    assert fetcher.fetched == [
+        failed_url,
+        first_good_url,
+        second_good_url,
+    ]
+    assert len(result.fetched) == 3
+    assert len(result.fetch_failures) == 1
+    assert result.fetch_failures[0].url == failed_url
+    assert result.fetch_failures[0].error == "HTTP 500"
+    assert result.count == 2

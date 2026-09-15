@@ -129,21 +129,21 @@ Build a general-purpose public-web lead scraper engine that accepts a keyword, l
 - [x] Verify terminal output
 
 ### Phase 14 — Robustness
-- [ ] Handle 404 responses
-- [ ] Handle 403 responses
-- [ ] Handle 429 responses
-- [ ] Handle 500 responses
-- [ ] Handle timeouts
-- [ ] Handle redirects
-- [ ] Handle empty HTML
-- [ ] Handle malformed HTML
-- [ ] Handle invalid JSON-LD
-- [ ] Handle non-HTML pages
-- [ ] Handle duplicate URLs
-- [ ] Handle duplicate leads
-- [ ] Handle dead domains
-- [ ] Handle robots-blocked pages
-- [ ] Ensure engine does not crash on individual failures
+- [x] Handle 404 responses
+- [x] Handle 403 responses
+- [x] Handle 429 responses
+- [x] Handle 500 responses
+- [x] Handle timeouts
+- [x] Handle redirects
+- [x] Handle empty HTML
+- [x] Handle malformed HTML
+- [x] Handle invalid JSON-LD
+- [x] Handle non-HTML pages
+- [x] Handle duplicate URLs
+- [x] Handle duplicate leads
+- [x] Handle dead domains
+- [x] Handle robots-blocked pages
+- [x] Ensure engine does not crash on individual failures
 
 ### Phase 15 — Documentation
 - [ ] Write README
