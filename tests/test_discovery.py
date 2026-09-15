@@ -236,3 +236,61 @@ def test_discover_deduplicates_results_across_provider_queries():
         "https://example.com/doctor-1",
         "https://example.com/doctor-2",
     ]
+
+def test_discover_integrates_with_searxng_provider():
+    from scraper.providers.searxng import SearXNGProvider
+
+    class FakeResponse:
+        def __init__(self, payload):
+            self.payload = payload
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return self.payload
+
+    class FakeClient:
+        def __init__(self):
+            self.calls = []
+
+        def get(self, url, **kwargs):
+            self.calls.append((url, kwargs))
+            return FakeResponse({
+                "results": [
+                    {
+                        "title": "Doctor One",
+                        "url": "https://example.com/doctor-1",
+                        "content": "Doctor in Shahjahanpur",
+                    },
+                    {
+                        "title": "Doctor Two",
+                        "url": "https://example.com/doctor-2",
+                        "content": "Doctor in Shahjahanpur",
+                    },
+                ]
+            })
+
+    client = FakeClient()
+    provider = SearXNGProvider(
+        base_url="http://127.0.0.1:8080",
+        client=client,
+    )
+    discovery = WebDiscovery(providers=[provider])
+
+    request = SearchRequest(
+        keyword="doctor",
+        location="Shahjahanpur",
+        limit=2,
+    )
+
+    results = discovery.discover(request)
+
+    assert len(results) == 2
+    assert [page.url for page in results] == [
+        "https://example.com/doctor-1",
+        "https://example.com/doctor-2",
+    ]
+    assert all(page.source_name == "searxng" for page in results)
+    assert len(client.calls) >= 1
+    assert client.calls[0][0] == "http://127.0.0.1:8080/search"

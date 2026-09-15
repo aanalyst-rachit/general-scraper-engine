@@ -111,11 +111,42 @@ def test_deduplicate_by_name_and_address():
     assert result[0].phone == "9876543210"
 
 
-def test_deduplicate_by_name_and_location_when_address_missing():
+def test_same_name_and_location_with_different_profession_are_not_merged():
     normalizer = LeadNormalizer()
     leads = [
-        Lead(name="Dr. Raj Kumar", location="Shahjahanpur"),
-        Lead(name="DR. RAJ KUMAR", location="SHAHJAHANPUR", email="raj@example.com"),
+        Lead(
+            name="ABC",
+            profession="Doctor",
+            location="Shahjahanpur",
+        ),
+        Lead(
+            name="ABC",
+            profession="CA",
+            location="Shahjahanpur",
+            email="abc@example.com",
+        ),
+    ]
+
+    result = normalizer.deduplicate_leads(leads)
+
+    assert len(result) == 2
+    assert {lead.profession for lead in result} == {"Doctor", "CA"}
+
+
+def test_same_name_profession_and_location_are_deduplicated():
+    normalizer = LeadNormalizer()
+    leads = [
+        Lead(
+            name="Dr. Raj Kumar",
+            profession="Doctor",
+            location="Shahjahanpur",
+        ),
+        Lead(
+            name="DR. RAJ KUMAR",
+            profession="DOCTOR",
+            location="SHAHJAHANPUR",
+            email="raj@example.com",
+        ),
     ]
 
     result = normalizer.deduplicate_leads(leads)

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
+from scraper.database.repository import LeadRepository
 from scraper.discovery import DiscoveredPage, SearchRequest, WebDiscovery
 from scraper.fetcher import FetchedPage, PageFetcher
 from scraper.models import Lead
@@ -30,6 +31,7 @@ class ScrapeResult:
     fetched: list[FetchedPage]
     fetch_failures: list[FetchFailure]
     parse_failures: list[ParseFailure]
+    existing_leads: list[Lead] = field(default_factory=list)
 
     @property
     def count(self) -> int:
@@ -48,6 +50,7 @@ class ScraperEngine:
         location_relevance: LocationRelevance | None = None,
         category_relevance: CategoryRelevance | None = None,
         requirements_relevance: RequirementsRelevance | None = None,
+        repository: LeadRepository | None = None,
     ) -> None:
         self.discovery = discovery
         self.fetcher = fetcher
@@ -58,8 +61,18 @@ class ScraperEngine:
         self.location_relevance = location_relevance
         self.category_relevance = category_relevance
         self.requirements_relevance = requirements_relevance
+        self.repository = repository
 
     def run(self, request: SearchRequest) -> ScrapeResult:
+        existing_leads: list[Lead] = []
+
+        if self.repository is not None:
+            existing_leads = self.repository.search(
+                keyword=request.keyword,
+                location=request.location,
+                limit=request.limit,
+            )
+
         discovered = self.discovery.discover(request)
         fetched: list[FetchedPage] = []
         fetch_failures: list[FetchFailure] = []
@@ -126,12 +139,17 @@ class ScraperEngine:
 
         leads = self.normalizer.deduplicate_leads(parsed_leads)
 
+        if self.repository is not None:
+            for lead in leads:
+                self.repository.save(lead)
+
         return ScrapeResult(
             leads=leads,
             discovered=discovered,
             fetched=fetched,
             fetch_failures=fetch_failures,
             parse_failures=parse_failures,
+            existing_leads=existing_leads,
         )
 
 
@@ -145,6 +163,7 @@ def scrape(
     location_relevance: LocationRelevance | None = None,
     category_relevance: CategoryRelevance | None = None,
     requirements_relevance: RequirementsRelevance | None = None,
+    repository: LeadRepository | None = None,
 ) -> ScrapeResult:
     engine = ScraperEngine(
         discovery=discovery,
@@ -159,5 +178,6 @@ def scrape(
         requirements_relevance=requirements_relevance or (
             RequirementsRelevance(request.requirements) if request.requirements.strip() else None
         ),
+        repository=repository,
     )
     return engine.run(request)

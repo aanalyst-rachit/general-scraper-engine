@@ -64,7 +64,7 @@ Build a general-purpose public-web lead scraper engine that accepts a keyword, l
 - [x] Deduplicate leads
 - [x] Merge duplicate records
 - [x] Preserve source URLs
-- [ ] Complete dedicated normalizer pytest coverage
+- [x] Complete dedicated normalizer pytest coverage
 
 ### Phase 6 — Engine Integration
 - [x] Connect discovery to fetcher
@@ -98,26 +98,26 @@ Build a general-purpose public-web lead scraper engine that accepts a keyword, l
 - [x] Add lead quality checks
 
 ### Phase 10 — Rate Limiting & Crawl Policy
-- [ ] Implement crawl-delay handling
-- [ ] Add request throttling
-- [ ] Add per-domain limits
-- [ ] Add retry policy
-- [ ] Improve robots.txt failure handling
+- [x] Implement crawl-delay handling
+- [x] Add request throttling
+- [x] Add per-domain limits
+- [x] Add retry policy
+- [x] Improve robots.txt failure handling
 
 ### Phase 11 — CLI
-- [ ] Add keyword argument
-- [ ] Add location argument
-- [ ] Add optional requirements argument
-- [ ] Add result limit argument
-- [ ] Validate CLI input
+- [x] Add keyword argument
+- [x] Add location argument
+- [x] Add optional requirements argument
+- [x] Add result limit argument
+- [x] Validate CLI input
 
 ### Phase 12 — Terminal Output
-- [ ] Print result count
-- [ ] Print structured lead records
-- [ ] Print source information
-- [ ] Print fetch/parse summary
-- [ ] Keep terminal output readable
-- [ ] Optional JSON/CSV output later
+- [x] Print result count
+- [x] Print structured lead records
+- [x] Print source information
+- [x] Print fetch/parse summary
+- [x] Keep terminal output readable
+- [x] Optional JSON/CSV output
 
 ### Phase 13 — Live Web Smoke Test
 - [ ] Run real doctor + Shahjahanpur search

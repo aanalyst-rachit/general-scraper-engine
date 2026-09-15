@@ -1,5 +1,6 @@
 from scraper.discovery import DiscoveredPage, SearchRequest
 from scraper.engine import ScraperEngine
+from scraper.models import Lead
 from scraper.fetcher import FetchedPage
 from scraper.normalizer import LeadNormalizer
 from scraper.parser import PageParser
@@ -33,6 +34,27 @@ class FakeDiscovery:
         ]
 
 
+class FakeRepository:
+    def __init__(self):
+        self.saved = []
+        self.search_calls = []
+        self.existing = []
+
+    def save(self, lead):
+        self.saved.append(lead)
+        return lead
+
+    def search(self, keyword='', location='', limit=50):
+        self.search_calls.append(
+            {
+                'keyword': keyword,
+                'location': location,
+                'limit': limit,
+            }
+        )
+        return list(self.existing)
+
+
 class FakeFetcher:
     pages = {
         "https://example.com/raj-1": FetchedPage(
@@ -44,7 +66,7 @@ class FakeFetcher:
 <body><p>Dr Raj Kumar</p>
 <p>+91 98765 43210</p>
 <p>raj@example.com</p>
-<p>Main Road, Shahjahanpur, Uttar Pradesh</p>
+<address>Main Road, Shahjahanpur, Uttar Pradesh</address>
 </body></html>""",
         ),
         "https://example.com/raj-2": FetchedPage(
@@ -56,7 +78,7 @@ class FakeFetcher:
 <body><p>Dr Raj Kumar</p>
 <p>+91-98765-43210</p>
 <p>raj@example.com</p>
-<p>Main Road, Shahjahanpur, Uttar Pradesh</p>
+<address>Main Road, Shahjahanpur, Uttar Pradesh</address>
 </body></html>""",
         ),
         "https://example.com/amit": FetchedPage(
@@ -68,7 +90,7 @@ class FakeFetcher:
 <body><p>Dr Amit Kumar</p>
 <p>+91 91234 56789</p>
 <p>amit@example.com</p>
-<p>Civil Lines, Shahjahanpur</p>
+<address>Civil Lines, Shahjahanpur</address>
 </body></html>""",
         ),
         "https://example.com/broken": FetchedPage(
@@ -364,3 +386,176 @@ def test_scrape_builds_category_and_requirements_filters_from_request():
     )
     assert result.count == 1
     assert fetcher.fetched == ["https://example.com/qualified"]
+
+def test_engine_saves_deduplicated_leads_to_repository():
+    repository = FakeRepository()
+    engine = ScraperEngine(
+        discovery=FakeDiscovery(),
+        fetcher=FakeFetcher(),
+        parser=PageParser(),
+        normalizer=LeadNormalizer(),
+        repository=repository,
+    )
+
+    request = SearchRequest(
+        keyword="doctor",
+        location="Shahjahanpur",
+        limit=10,
+    )
+
+    result = engine.run(request)
+
+    assert result.count == 2
+    assert len(repository.saved) == 2
+    assert {lead.name for lead in repository.saved} == {
+        lead.name for lead in result.leads
+    }
+
+
+def test_engine_reads_and_accumulates_real_duckdb_repository(tmp_path):
+    from scraper.database.duckdb import DuckDBLeadRepository
+
+    repository = DuckDBLeadRepository(tmp_path / "leads.duckdb")
+
+    class IntegrationDiscovery:
+        def __init__(self, pages):
+            self.pages = pages
+
+        def discover(self, request):
+            return list(self.pages)
+
+    class IntegrationFetcher:
+        def __init__(self, pages):
+            self.pages = pages
+
+        def fetch(self, url):
+            return self.pages[url]
+
+    raj_page = DiscoveredPage(
+        url="https://integration.example.com/raj",
+        title="Dr Raj Kumar",
+        source_name="Integration Directory",
+    )
+    amit_page = DiscoveredPage(
+        url="https://integration.example.com/amit",
+        title="Dr Amit Kumar",
+        source_name="Integration Directory",
+    )
+
+    pages = {
+        raj_page.url: FetchedPage(
+            url=raj_page.url,
+            final_url=raj_page.url,
+            status_code=200,
+            content_type="text/html",
+            html="""<html><head><title>Dr Raj Kumar</title></head>
+            <body><p>Dr Raj Kumar</p>
+            <p>+91 98765 43210</p>
+            <p>raj@example.com</p>
+            <address>Main Road, Shahjahanpur, Uttar Pradesh</address>
+            </body></html>""",
+        ),
+        amit_page.url: FetchedPage(
+            url=amit_page.url,
+            final_url=amit_page.url,
+            status_code=200,
+            content_type="text/html",
+            html="""<html><head><title>Dr Amit Kumar</title></head>
+            <body><p>Dr Amit Kumar</p>
+            <p>+91 91234 56789</p>
+            <p>amit@example.com</p>
+            <address>Civil Lines, Shahjahanpur</address>
+            </body></html>""",
+        ),
+    }
+
+    request = SearchRequest(
+        keyword="doctor",
+        location="Shahjahanpur",
+        limit=10,
+    )
+
+    first_engine = ScraperEngine(
+        discovery=IntegrationDiscovery([raj_page]),
+        fetcher=IntegrationFetcher(pages),
+        parser=PageParser(),
+        normalizer=LeadNormalizer(),
+        repository=repository,
+    )
+
+    first_result = first_engine.run(request)
+
+    assert first_result.count == 1
+    assert first_result.leads[0].category == "doctor"
+    assert first_result.leads[0].location == "Main Road, Shahjahanpur, Uttar Pradesh"
+    assert repository.count() == 1
+    assert repository.all()[0].name == "Dr Raj Kumar"
+    assert repository.all()[0].category == "doctor"
+    assert repository.all()[0].location == "Main Road, Shahjahanpur, Uttar Pradesh"
+
+    existing_from_repository = repository.search(
+        keyword="doctor",
+        location="Shahjahanpur",
+        limit=10,
+    )
+
+    assert [lead.name for lead in existing_from_repository] == [
+        "Dr Raj Kumar",
+    ]
+
+    second_engine = ScraperEngine(
+        discovery=IntegrationDiscovery([raj_page, amit_page]),
+        fetcher=IntegrationFetcher(pages),
+        parser=PageParser(),
+        normalizer=LeadNormalizer(),
+        repository=repository,
+    )
+
+    second_result = second_engine.run(request)
+
+    assert [lead.name for lead in second_result.existing_leads] == [
+        "Dr Raj Kumar",
+    ]
+    assert second_result.count == 2
+    assert repository.count() == 2
+    assert {lead.name for lead in repository.all()} == {
+        "Dr Raj Kumar",
+        "Dr Amit Kumar",
+    }
+
+def test_engine_reads_existing_leads_from_repository():
+    repository = FakeRepository()
+
+    existing = Lead(
+        name='Existing Doctor',
+        profession='Doctor',
+        city='Shahjahanpur',
+        phone='9876543210',
+    )
+
+    repository.existing = [existing]
+
+    engine = ScraperEngine(
+        discovery=FakeDiscovery(),
+        fetcher=FakeFetcher(),
+        parser=PageParser(),
+        normalizer=LeadNormalizer(),
+        repository=repository,
+    )
+
+    request = SearchRequest(
+        keyword='doctor',
+        location='Shahjahanpur',
+        limit=10,
+    )
+
+    result = engine.run(request)
+
+    assert repository.search_calls == [
+        {
+            'keyword': 'doctor',
+            'location': 'Shahjahanpur',
+            'limit': 10,
+        }
+    ]
+    assert result.existing_leads == [existing]

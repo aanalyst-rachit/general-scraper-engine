@@ -272,3 +272,260 @@ def test_robots_failure_is_cached(monkeypatch):
         assert result.ok is False
 
     assert calls == ["https://example.com/robots.txt"]
+
+def test_request_delay_does_not_sleep_on_first_request(monkeypatch):
+    fetcher = PageFetcher(request_delay=2)
+    monkeypatch.setattr(fetcher, "_crawl_delay_for", lambda url: None)
+    sleeps = []
+    monkeypatch.setattr("scraper.fetcher.time.sleep", lambda seconds: sleeps.append(seconds))
+    monkeypatch.setattr("scraper.fetcher.time.monotonic", lambda: 100.0)
+
+    fetcher._wait_for_request_delay("https://example.com/page")
+
+    assert sleeps == []
+    assert fetcher._last_request_at["https://example.com"] == 100.0
+
+
+def test_request_delay_sleeps_between_same_origin_requests(monkeypatch):
+    fetcher = PageFetcher(request_delay=3)
+    monkeypatch.setattr(fetcher, "_crawl_delay_for", lambda url: None)
+    sleeps = []
+    clock = iter([100.0, 101.0, 103.0])
+    monkeypatch.setattr("scraper.fetcher.time.monotonic", lambda: next(clock))
+    monkeypatch.setattr("scraper.fetcher.time.sleep", lambda seconds: sleeps.append(seconds))
+
+    fetcher._wait_for_request_delay("https://example.com/one")
+    fetcher._wait_for_request_delay("https://example.com/two")
+
+    assert sleeps == [2.0]
+    assert fetcher._last_request_at["https://example.com"] == 103.0
+
+
+def test_request_delay_is_independent_per_origin(monkeypatch):
+    fetcher = PageFetcher(request_delay=4)
+    monkeypatch.setattr(fetcher, "_crawl_delay_for", lambda url: None)
+    sleeps = []
+    monkeypatch.setattr("scraper.fetcher.time.sleep", lambda seconds: sleeps.append(seconds))
+    monkeypatch.setattr("scraper.fetcher.time.monotonic", lambda: 100.0)
+
+    fetcher._wait_for_request_delay("https://example.com/page")
+    fetcher._wait_for_request_delay("https://other.example/page")
+
+    assert sleeps == []
+    assert set(fetcher._last_request_at) == {"https://example.com", "https://other.example"}
+
+
+def test_request_delay_uses_larger_of_configured_and_crawl_delay(monkeypatch):
+    fetcher = PageFetcher(request_delay=5)
+    monkeypatch.setattr(fetcher, "_crawl_delay_for", lambda url: 2.0)
+    sleeps = []
+    clock = iter([100.0, 101.0, 105.0])
+    monkeypatch.setattr("scraper.fetcher.time.monotonic", lambda: next(clock))
+    monkeypatch.setattr("scraper.fetcher.time.sleep", lambda seconds: sleeps.append(seconds))
+
+    fetcher._wait_for_request_delay("https://example.com/one")
+    fetcher._wait_for_request_delay("https://example.com/two")
+
+    assert sleeps == [4.0]
+
+def test_per_domain_limit_allows_requests_until_limit(monkeypatch):
+    response = FakeResponse()
+    monkeypatch.setattr(
+        "scraper.fetcher.httpx.Client",
+        lambda **kwargs: FakeClient(response=response, **kwargs),
+    )
+
+    fetcher = PageFetcher(max_requests_per_domain=2)
+    fetcher._allowed = lambda url: True
+
+    first = fetcher.fetch("https://example.com/one")
+    second = fetcher.fetch("https://example.com/two")
+
+    assert first.ok is True
+    assert second.ok is True
+    assert fetcher._domain_request_counts["example.com"] == 2
+
+
+def test_per_domain_limit_blocks_request_after_limit(monkeypatch):
+    response = FakeResponse()
+    calls = []
+
+    monkeypatch.setattr(
+        "scraper.fetcher.httpx.Client",
+        lambda **kwargs: FakeClient(response=response, **kwargs),
+    )
+
+    fetcher = PageFetcher(max_requests_per_domain=1)
+    fetcher._allowed = lambda url: True
+
+    first = fetcher.fetch("https://example.com/one")
+    calls.append(first)
+    second = fetcher.fetch("https://example.com/two")
+    calls.append(second)
+
+    assert calls[0].ok is True
+    assert calls[1].ok is False
+    assert calls[1].error == "per-domain request limit reached"
+    assert fetcher._domain_request_counts["example.com"] == 1
+
+
+def test_per_domain_limit_is_independent_per_domain(monkeypatch):
+    response = FakeResponse()
+    monkeypatch.setattr(
+        "scraper.fetcher.httpx.Client",
+        lambda **kwargs: FakeClient(response=response, **kwargs),
+    )
+
+    fetcher = PageFetcher(max_requests_per_domain=1)
+    fetcher._allowed = lambda url: True
+    fetcher._crawl_delay_for = lambda url: None
+
+    example = fetcher.fetch("https://example.com/one")
+    other = fetcher.fetch("https://other.example/one")
+
+    assert example.ok is True
+    assert other.ok is True
+    assert fetcher._domain_request_counts == {
+        "example.com": 1,
+        "other.example": 1,
+    }
+
+
+def test_per_domain_limit_does_not_count_robots_block(monkeypatch):
+    fetcher = PageFetcher(max_requests_per_domain=1)
+    fetcher._allowed = lambda url: False
+
+    result = fetcher.fetch("https://example.com/private")
+
+    assert result.error == "blocked by robots.txt"
+    assert fetcher._domain_request_counts == {}
+
+
+def test_per_domain_limit_does_not_count_invalid_url():
+    fetcher = PageFetcher(max_requests_per_domain=1)
+
+    result = fetcher.fetch("ftp://example.com/page")
+
+    assert result.error == "unsupported URL"
+    assert fetcher._domain_request_counts == {}
+
+
+def test_per_domain_limit_zero_blocks_all_requests(monkeypatch):
+    fetcher = PageFetcher(max_requests_per_domain=0)
+    fetcher._allowed = lambda url: True
+
+    result = fetcher.fetch("https://example.com/page")
+
+    assert result.ok is False
+    assert result.error == "per-domain request limit reached"
+    assert fetcher._domain_request_counts == {}
+
+def test_retry_recovers_from_timeout(monkeypatch):
+    responses = iter([
+        httpx.TimeoutException("timed out"),
+        FakeResponse(status_code=200, content_type="text/html", text="<html>ok</html>"),
+    ])
+
+    class RetryClient(FakeClient):
+        def get(self, url):
+            response = next(responses)
+            if isinstance(response, Exception):
+                raise response
+            return response
+
+    monkeypatch.setattr("scraper.fetcher.httpx.Client", lambda **kwargs: RetryClient(**kwargs))
+    monkeypatch.setattr("scraper.fetcher.time.sleep", lambda seconds: None)
+
+    fetcher = PageFetcher(max_retries=1, retry_backoff=2)
+    fetcher._allowed = lambda url: True
+
+    result = fetcher.fetch("https://example.com/slow")
+
+    assert result.ok is True
+    assert result.html == "<html>ok</html>"
+
+
+def test_retry_retries_http_5xx(monkeypatch):
+    responses = iter([
+        FakeResponse(status_code=503, content_type="text/html", text="<html>busy</html>"),
+        FakeResponse(status_code=200, content_type="text/html", text="<html>ok</html>"),
+    ])
+
+    class RetryClient(FakeClient):
+        def get(self, url):
+            return next(responses)
+
+    monkeypatch.setattr("scraper.fetcher.httpx.Client", lambda **kwargs: RetryClient(**kwargs))
+    monkeypatch.setattr("scraper.fetcher.time.sleep", lambda seconds: None)
+
+    fetcher = PageFetcher(max_retries=1, retry_backoff=1)
+    fetcher._allowed = lambda url: True
+
+    result = fetcher.fetch("https://example.com/busy")
+
+    assert result.ok is True
+    assert result.status_code == 200
+
+
+def test_retry_does_not_retry_http_4xx(monkeypatch):
+    calls = []
+    response = FakeResponse(status_code=404, content_type="text/html", text="<html>missing</html>")
+
+    class NoRetryClient(FakeClient):
+        def get(self, url):
+            calls.append(url)
+            return response
+
+    monkeypatch.setattr("scraper.fetcher.httpx.Client", lambda **kwargs: NoRetryClient(**kwargs))
+    monkeypatch.setattr("scraper.fetcher.time.sleep", lambda seconds: (_ for _ in ()).throw(AssertionError("unexpected retry sleep")))
+
+    fetcher = PageFetcher(max_retries=3, retry_backoff=1)
+    fetcher._allowed = lambda url: True
+
+    result = fetcher.fetch("https://example.com/missing")
+
+    assert result.error == "HTTP 404"
+    assert calls == ["https://example.com/missing"]
+
+
+def test_retry_exhaustion_returns_last_error(monkeypatch):
+    calls = []
+
+    class FailingClient(FakeClient):
+        def get(self, url):
+            calls.append(url)
+            raise httpx.ConnectError("connection failed")
+
+    monkeypatch.setattr("scraper.fetcher.httpx.Client", lambda **kwargs: FailingClient(**kwargs))
+    monkeypatch.setattr("scraper.fetcher.time.sleep", lambda seconds: None)
+
+    fetcher = PageFetcher(max_retries=2, retry_backoff=1)
+    fetcher._allowed = lambda url: True
+
+    result = fetcher.fetch("https://example.com/down")
+
+    assert result.ok is False
+    assert result.error.startswith("HTTP error:")
+    assert len(calls) == 3
+
+
+def test_retry_attempts_count_against_domain_limit(monkeypatch):
+    calls = []
+
+    class FailingClient(FakeClient):
+        def get(self, url):
+            calls.append(url)
+            raise httpx.TimeoutException("timed out")
+
+    monkeypatch.setattr("scraper.fetcher.httpx.Client", lambda **kwargs: FailingClient(**kwargs))
+    monkeypatch.setattr("scraper.fetcher.time.sleep", lambda seconds: None)
+
+    fetcher = PageFetcher(max_retries=2, retry_backoff=1, max_requests_per_domain=2)
+    fetcher._allowed = lambda url: True
+
+    result = fetcher.fetch("https://example.com/slow")
+
+    assert result.ok is False
+    assert result.error == "request timeout"
+    assert len(calls) == 2
+    assert fetcher._domain_request_counts["example.com"] == 2
