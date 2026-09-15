@@ -159,10 +159,10 @@ Build a general-purpose public-web lead scraper engine that accepts a keyword, l
 - [x] Document limitations
 
 ### Phase 16 — Packaging
-- [ ] Create/update pyproject.toml
-- [ ] Add package metadata
-- [ ] Add CLI entry point if appropriate
-- [ ] Verify package installation
+- [x] Create/update pyproject.toml
+- [x] Add package metadata
+- [x] Add CLI entry point if appropriate
+- [x] Verify package installation
 
 ### Phase 17 — Final Test & Release Audit
 - [ ] Run full pytest suite

@@ -59,7 +59,7 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
-The project is currently run directly from the repository. Python packaging and an installable CLI entry point are planned for Phase 16.
+The project can be installed as a Python package with `pip install .`, which also installs the `general-scraper` CLI entry point. Running `python run_scraper.py` directly from the repository remains supported for development.
 
 ## Quick Start
 
@@ -545,7 +545,7 @@ Results depend on:
 
 Not every website exposes structured business information, and some pages may require JavaScript rendering that the current HTTP/HTML pipeline does not execute.
 
-The current CLI is repository-based rather than an installed system command. Packaging and a formal package entry point are planned for Phase 16.
+The CLI is available both as the installed `general-scraper` command and as `python run_scraper.py` when running directly from the repository.
 
 ## Project Status
 

@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "general-scraper-engine"
+version = "1.0.0"
+description = "General-purpose public-web lead scraper engine"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+dependencies = [
+    "httpx>=0.28,<0.29",
+    "beautifulsoup4>=4.15,<4.16",
+    "lxml>=6.1,<6.2",
+    "duckdb>=1.5,<1.6",
+]
+
+[project.scripts]
+general-scraper = "run_scraper:main"
+
+[tool.setuptools]
+py-modules = ["run_scraper"]
+
+[tool.setuptools.packages.find]
+include = ["scraper*"]
