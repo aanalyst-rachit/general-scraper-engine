@@ -174,14 +174,22 @@ This tracker is the locked v1.0.2 implementation scope. Competitor features from
 
 ## PHASE 11 — External Scraping Provider Adapters
 
-- [ ] Define ExternalFetcher interface
-- [ ] Define provider-neutral request/response contract
-- [ ] Evaluate Firecrawl integration
-- [ ] Evaluate Scrape.do integration
-- [ ] Evaluate Scrapingdog integration
-- [ ] Keep external providers optional
-- [ ] Do not make any external provider mandatory for local/self-hosted usage
-- [ ] Ensure external providers cannot silently bypass robots/policy decisions
+- [x] Define ExternalFetcher interface
+  - Added a provider-neutral `ExternalFetcher` protocol returning the existing `FetchedPage` model.
+- [x] Define provider-neutral request/response contract
+  - Added immutable `ExternalFetchRequest` with URL, optional rendering, and optional timeout controls; adapters normalize responses to `FetchedPage`.
+- [x] Evaluate Firecrawl integration
+  - Added an optional Firecrawl adapter using the documented v2 scrape endpoint and HTML response mapping; API credentials are required only when the adapter is instantiated.
+- [x] Evaluate Scrape.do integration
+  - Added an optional Scrape.do adapter with documented token/URL parameters, optional rendering, timeout mapping, and resolved-URL handling.
+- [x] Evaluate Scrapingdog integration
+  - Added an optional Scrapingdog adapter with documented API-key/URL parameters and `dynamic=true` rendering support; no undocumented per-request timeout parameter is introduced.
+- [x] Keep external providers optional
+  - Provider modules are independently importable and are not instantiated by the default acquisition path; credentials are not required for local HTTP/browser operation.
+- [x] Do not make any external provider mandatory for local/self-hosted usage
+  - `ScraperEngine` continues to use the existing local HTTP/browser acquisition flow by default, with no external service dependency.
+- [x] Ensure external providers cannot silently bypass robots/policy decisions
+  - Added `PolicyAwareExternalFetcher`, which checks the existing robots policy and request-delay policy before invoking an external provider; blocked or failed policy checks prevent provider invocation.
 
 ## PHASE 12 — Specialized Source Adapters
 

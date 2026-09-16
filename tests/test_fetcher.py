@@ -68,6 +68,29 @@ def test_fetch_rejects_unsupported_url():
     assert result.error == "unsupported URL"
 
 
+def test_can_fetch_delegates_to_robots_policy():
+    fetcher = PageFetcher()
+    fetcher._allowed = lambda url: url.endswith("/allowed")
+
+    assert fetcher.can_fetch("https://example.com/allowed") is True
+    assert fetcher.can_fetch("https://example.com/private") is False
+
+
+def test_wait_for_request_delay_delegates_to_existing_policy(monkeypatch):
+    fetcher = PageFetcher()
+    calls = []
+
+    monkeypatch.setattr(
+        fetcher,
+        "_wait_for_request_delay",
+        lambda url: calls.append(url),
+    )
+
+    fetcher.wait_for_request_delay("https://example.com/page")
+
+    assert calls == ["https://example.com/page"]
+
+
 def test_fetch_rejects_blocked_by_robots():
     fetcher = PageFetcher()
     fetcher._allowed = lambda url: False

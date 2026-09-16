@@ -109,6 +109,14 @@ class PageFetcher:
     def _wait_for_crawl_delay(self, url: str) -> None:
         self._wait_for_request_delay(url)
 
+    def wait_for_request_delay(self, url: str) -> None:
+        "Apply the configured request/crawl delay for a URL."
+        self._wait_for_request_delay(url)
+
+    def can_fetch(self, url: str) -> bool:
+        "Return whether robots policy permits fetching a URL."
+        return self._allowed(url)
+
     def _allowed(self, url: str) -> bool:
         parsed = urlparse(url)
 
