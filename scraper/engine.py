@@ -19,6 +19,7 @@ from scraper.normalizer import LeadNormalizer
 from scraper.parser import PageParser
 from scraper.registry import ParserRegistry
 from scraper.quality import LeadQuality
+from scraper.location import LocationValidator
 from scraper.relevance import CategoryRelevance, KeywordRelevance, LocationRelevance, RequirementsRelevance
 
 
@@ -42,6 +43,9 @@ class ScrapeResult:
     fetch_failures: list[FetchFailure]
     parse_failures: list[ParseFailure]
     existing_leads: list[Lead] = field(default_factory=list)
+    quality_checked_count: int = 0
+    quality_accepted_count: int = 0
+    quality_rejected_count: int = 0
 
     @property
     def count(self) -> int:
@@ -136,6 +140,9 @@ class ScraperEngine:
         fetch_failures: list[FetchFailure] = []
         parsed_leads: list[Lead] = []
         parse_failures: list[ParseFailure] = []
+        quality_checked_count = 0
+        quality_accepted_count = 0
+        quality_rejected_count = 0
 
         candidates: list[DiscoveredPage] = []
 
@@ -217,9 +224,15 @@ class ScraperEngine:
             if not lead.source_name:
                 lead.source_name = candidate.source_name or "web"
 
-            if not self.quality.is_valid(lead):
+            if not LocationValidator(request.location).is_relevant(lead):
                 continue
 
+            quality_checked_count += 1
+            if not self.quality.is_valid(lead):
+                quality_rejected_count += 1
+                continue
+
+            quality_accepted_count += 1
             parsed_leads.append(lead)
 
         leads = self.normalizer.deduplicate_leads(parsed_leads)
@@ -235,6 +248,9 @@ class ScraperEngine:
             fetch_failures=fetch_failures,
             parse_failures=parse_failures,
             existing_leads=existing_leads,
+            quality_checked_count=quality_checked_count,
+            quality_accepted_count=quality_accepted_count,
+            quality_rejected_count=quality_rejected_count,
         )
 
 

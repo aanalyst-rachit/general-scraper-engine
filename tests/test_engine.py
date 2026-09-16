@@ -248,6 +248,140 @@ def make_combined_relevance_engine(fetcher):
     )
 
 
+def test_engine_reports_quality_measurement_separately_from_fetches():
+    class QualityDiscovery:
+        def discover(self, request):
+            return [
+                DiscoveredPage(url="https://example.com/valid"),
+                DiscoveredPage(url="https://example.com/invalid"),
+            ]
+
+    class QualityFetcher:
+        def fetch(self, url):
+            return FetchedPage(
+                url=url,
+                final_url=url,
+                status_code=200,
+                content_type="text/html",
+                html="<html><body>content</body></html>",
+            )
+
+    class QualityParser:
+        def parse(self, page, category=""):
+            if page.url.endswith("/valid"):
+                return Lead(
+                    name="Valid Lead",
+                    phone="9876543210",
+                    source_url=page.url,
+                )
+            return Lead(name="Invalid Lead")
+
+    engine = ScraperEngine(
+        discovery=QualityDiscovery(),
+        fetcher=QualityFetcher(),
+        parser=QualityParser(),
+        normalizer=LeadNormalizer(),
+    )
+
+    result = engine.run(SearchRequest(keyword="doctor"))
+
+    assert len(result.fetched) == 2
+    assert result.quality_checked_count == 2
+    assert result.quality_accepted_count == 1
+    assert result.quality_rejected_count == 1
+    assert result.count == 1
+
+
+def test_engine_rejects_lead_with_wrong_extracted_location():
+    class LocationDiscovery:
+        def discover(self, request):
+            return [
+                DiscoveredPage(
+                    url="https://example.com/location-mismatch",
+                    title="Doctor Shahjahanpur",
+                    snippet="Doctor in Shahjahanpur",
+                )
+            ]
+
+    class LocationFetcher:
+        def fetch(self, url):
+            return FetchedPage(
+                url=url,
+                final_url=url,
+                status_code=200,
+                content_type="text/html",
+                html="<html><body>doctor</body></html>",
+            )
+
+    class LocationMismatchParser:
+        def parse(self, page, category=""):
+            return Lead(
+                name="Dr. Wrong Location",
+                phone="9876543210",
+                city="Lucknow",
+                source_url=page.final_url or page.url,
+            )
+
+    engine = ScraperEngine(
+        discovery=LocationDiscovery(),
+        fetcher=LocationFetcher(),
+        parser=LocationMismatchParser(),
+        normalizer=LeadNormalizer(),
+    )
+
+    result = engine.run(SearchRequest(keyword="doctor", location="Shahjahanpur"))
+
+    assert result.count == 0
+    assert len(result.fetched) == 1
+
+
+def test_engine_rejects_quality_valid_lead_from_irrelevant_location():
+    class GeographicDiscovery:
+        def discover(self, request):
+            return [
+                DiscoveredPage(
+                    url="https://example.com/lucknow-doctor",
+                    title="Doctor in Lucknow",
+                    snippet="Dr. Raj Kumar, Lucknow",
+                )
+            ]
+
+    class GeographicFetcher:
+        def fetch(self, url):
+            return FetchedPage(
+                url=url,
+                final_url=url,
+                status_code=200,
+                content_type="text/html",
+                html="<html><body>doctor</body></html>",
+            )
+
+    class GeographicParser:
+        def parse(self, page, category=""):
+            return Lead(
+                name="Dr. Raj Kumar",
+                phone="9876543210",
+                source_url=page.url,
+                city="Lucknow",
+                state="Uttar Pradesh",
+            )
+
+    engine = ScraperEngine(
+        discovery=GeographicDiscovery(),
+        fetcher=GeographicFetcher(),
+        parser=GeographicParser(),
+        normalizer=LeadNormalizer(),
+    )
+
+    result = engine.run(SearchRequest(keyword="doctor", location="Shahjahanpur"))
+
+    assert result.count == 0
+    assert result.quality_checked_count == 0
+    assert result.quality_accepted_count == 0
+    assert result.quality_rejected_count == 0
+    assert len(result.fetched) == 1
+
+
 def test_engine_requires_keyword_and_location_relevance():
     fetcher = CombinedRelevanceFetcher()
     engine = make_combined_relevance_engine(fetcher)

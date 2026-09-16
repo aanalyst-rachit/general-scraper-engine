@@ -131,13 +131,21 @@ This tracker is the locked v1.0.2 implementation scope. Competitor features from
 
 ## PHASE 9 — Lead Quality & Relevance
 
-- [ ] Audit existing LeadQuality and relevance behavior
-- [ ] Define requested-location vs extracted-location validation
-- [ ] Detect conflicting location evidence
-- [ ] Define lead quality scoring dimensions
-- [ ] Measure lead quality separately from fetch success
-- [ ] Preserve current Lead model compatibility
-- [ ] Avoid accepting technically valid but geographically irrelevant leads
+- [x] Audit existing LeadQuality and relevance behavior
+  - Existing deterministic LeadQuality validation and keyword/location/category/requirements relevance behavior were audited and preserved.
+- [x] Define requested-location vs extracted-location validation
+  - Added deterministic LocationValidator coverage across locality, city, district, state, location text, and address evidence.
+- [x] Detect conflicting location evidence
+  - Conflicting free-text location/address evidence is rejected when it contradicts the requested location.
+- [x] Define lead quality scoring dimensions
+  - LeadQuality now reports deterministic identity, contact, web presence, location, business context, and source evidence dimensions.
+- [x] Measure lead quality separately from fetch success
+  - Engine results now expose checked, accepted, and rejected quality counts independently of fetched-page counts.
+- [x] Preserve current Lead model compatibility
+  - Existing Lead fields, defaults, location fields, and to_dict() serialization remain compatible and are covered by regression tests.
+- [x] Avoid accepting technically valid but geographically irrelevant leads
+  - Geographic relevance is enforced before LeadQuality acceptance, preventing technically valid leads from irrelevant locations from entering final results.
+
 
 ## PHASE 10 — Map & Crawl
 
