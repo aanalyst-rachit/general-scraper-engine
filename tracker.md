@@ -100,12 +100,15 @@ This tracker is the locked v1.0.2 implementation scope. Competitor features from
 
 ## PHASE 7 — Fetch Cache
 
-- [ ] Design fetch cache schema
-- [ ] Include canonical URL, acquisition strategy, status, content type, content hash, timestamps, and metadata
-- [ ] Define cache invalidation/TTL policy
-- [ ] Evaluate HTML storage size before committing to DuckDB blob storage
-- [ ] Implement cache only after storage/performance R&D
-- [ ] Measure repeated-fetch latency reduction
+- [x] Design fetch cache schema
+- [x] Include canonical URL, acquisition strategy, status, content type, content hash, timestamps, and metadata
+- [x] Define cache invalidation/TTL policy
+- [x] Evaluate HTML storage size before committing to DuckDB blob storage
+- [x] Implement cache only after storage/performance R&D
+- [x] Measure repeated-fetch latency reduction
+  - Repeated local HTTP fetch benchmark: 20 iterations, 19 cache hits / 1 miss, 95% hit rate.
+  - Baseline mean: 63.537 ms; cached mean: 6.376 ms; 9.965x mean speedup and 89.96% mean latency reduction.
+  - Actual underlying fetch calls: 20 baseline vs 1 cached; 95% call reduction.
 
 ## PHASE 8 — Content & Extraction Layer
 

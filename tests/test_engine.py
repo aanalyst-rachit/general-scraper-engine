@@ -1035,3 +1035,68 @@ def test_engine_allows_independent_domains_to_run_concurrently():
     assert maximum_by_domain["two.example"] == 2
     assert len(result.fetched) == 4
     assert result.fetch_failures == []
+
+
+def test_engine_uses_fetch_cache_for_repeated_url(tmp_path):
+    from scraper.cache.fetch import FetchCache
+
+    url = "https://example.com/cached"
+
+    class Discovery:
+        def discover(self, request):
+            return [
+                DiscoveredPage(
+                    url=url,
+                    title="Cached Doctor",
+                    source_name="Directory",
+                )
+            ]
+
+    class Fetcher:
+        def __init__(self):
+            self.calls = []
+
+        def fetch(self, requested_url):
+            self.calls.append(requested_url)
+            return FetchedPage(
+                url=requested_url,
+                final_url=requested_url,
+                status_code=200,
+                content_type="text/html",
+                html="""<html><head><title>Dr Cached Doctor</title></head>
+<body><p>Dr Cached Doctor</p>
+<p>+91 91234 56789</p>
+<p>cached@example.com</p>
+<address>Civil Lines, Shahjahanpur</address>
+</body></html>""",
+            )
+
+    fetcher = Fetcher()
+
+    with FetchCache(tmp_path / "fetch.duckdb") as cache:
+        engine = ScraperEngine(
+            discovery=Discovery(),
+            fetcher=fetcher,
+            fetch_cache=cache,
+            parser=PageParser(),
+            normalizer=LeadNormalizer(),
+        )
+
+        first = engine.run(
+            SearchRequest(
+                keyword="doctor",
+                location="Shahjahanpur",
+                limit=10,
+            )
+        )
+        second = engine.run(
+            SearchRequest(
+                keyword="doctor",
+                location="Shahjahanpur",
+                limit=10,
+            )
+        )
+
+    assert first.count == 1
+    assert second.count == 1
+    assert fetcher.calls == [url]

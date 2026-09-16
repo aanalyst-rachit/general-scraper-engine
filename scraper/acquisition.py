@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
+from scraper.cache.fetch import FetchCache
 from scraper.content_quality import ContentQualityClassifier
 from scraper.fetcher import FetchedPage, PageFetcher
 
@@ -23,6 +24,40 @@ class HTTPFetcherAdapter:
 
     def fetch(self, request: FetchRequest) -> FetchedPage:
         return self.fetcher.fetch(request.url)
+
+
+class CachedFetcher:
+    def __init__(
+        self,
+        acquisition: AcquisitionStrategy,
+        cache: FetchCache,
+        acquisition_strategy: str = "auto",
+    ) -> None:
+        self.acquisition = acquisition
+        self.cache = cache
+        self.acquisition_strategy = acquisition_strategy
+
+    def fetch(self, request: FetchRequest) -> FetchedPage:
+        cached = self.cache.get(
+            url=request.url,
+            acquisition_strategy=self.acquisition_strategy,
+        )
+        if cached is not None:
+            return cached.to_fetched_page()
+
+        page = self.acquisition.fetch(request)
+
+        if page.ok:
+            self.cache.set(
+                url=request.url,
+                acquisition_strategy=self.acquisition_strategy,
+                status_code=page.status_code,
+                content_type=page.content_type,
+                html=page.html,
+                final_url=page.final_url,
+            )
+
+        return page
 
 
 class AutoFetcher:

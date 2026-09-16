@@ -184,3 +184,134 @@ def test_auto_fetcher_does_not_fallback_block_pages():
 
     assert result.status_code == 200
     assert "Access Denied" in result.html
+
+
+def test_cached_fetcher_caches_successful_acquisition(tmp_path):
+    from scraper.acquisition import CachedFetcher
+    from scraper.cache.fetch import FetchCache
+
+    class Acquisition:
+        def __init__(self):
+            self.calls = []
+
+        def fetch(self, request):
+            self.calls.append(request.url)
+            return FetchedPage(
+                url=request.url,
+                final_url=request.url,
+                status_code=200,
+                content_type="text/html",
+                html="<html><body>cached</body></html>",
+            )
+
+    acquisition = Acquisition()
+
+    with FetchCache(tmp_path / "fetch.duckdb") as cache:
+        fetcher = CachedFetcher(acquisition, cache)
+
+        first = fetcher.fetch(FetchRequest("https://example.com/page"))
+        second = fetcher.fetch(FetchRequest("https://example.com/page"))
+
+        assert first.html == "<html><body>cached</body></html>"
+        assert second.html == first.html
+        assert acquisition.calls == ["https://example.com/page"]
+
+
+def test_cached_fetcher_does_not_cache_failed_page(tmp_path):
+    from scraper.acquisition import CachedFetcher
+    from scraper.cache.fetch import FetchCache
+
+    class Acquisition:
+        def __init__(self):
+            self.calls = 0
+
+        def fetch(self, request):
+            self.calls += 1
+            return FetchedPage(
+                url=request.url,
+                status_code=500,
+                content_type="text/html",
+                error="HTTP 500",
+            )
+
+    acquisition = Acquisition()
+
+    with FetchCache(tmp_path / "fetch.duckdb") as cache:
+        fetcher = CachedFetcher(acquisition, cache)
+
+        first = fetcher.fetch(FetchRequest("https://example.com/error"))
+        second = fetcher.fetch(FetchRequest("https://example.com/error"))
+
+        assert first.status_code == 500
+        assert second.status_code == 500
+        assert acquisition.calls == 2
+
+
+def test_cached_fetcher_does_not_cache_empty_page(tmp_path):
+    from scraper.acquisition import CachedFetcher
+    from scraper.cache.fetch import FetchCache
+
+    class Acquisition:
+        def __init__(self):
+            self.calls = 0
+
+        def fetch(self, request):
+            self.calls += 1
+            return FetchedPage(
+                url=request.url,
+                final_url=request.url,
+                status_code=200,
+                content_type="text/html",
+                html="",
+            )
+
+    acquisition = Acquisition()
+
+    with FetchCache(tmp_path / "fetch.duckdb") as cache:
+        fetcher = CachedFetcher(acquisition, cache)
+
+        fetcher.fetch(FetchRequest("https://example.com/empty"))
+        fetcher.fetch(FetchRequest("https://example.com/empty"))
+
+        assert acquisition.calls == 2
+
+
+def test_cached_fetcher_separates_acquisition_strategies(tmp_path):
+    from scraper.acquisition import CachedFetcher
+    from scraper.cache.fetch import FetchCache
+
+    class Acquisition:
+        def __init__(self, html):
+            self.html = html
+            self.calls = 0
+
+        def fetch(self, request):
+            self.calls += 1
+            return FetchedPage(
+                url=request.url,
+                final_url=request.url,
+                status_code=200,
+                content_type="text/html",
+                html=self.html,
+            )
+
+    http = Acquisition("<html><body>http</body></html>")
+    browser = Acquisition("<html><body>browser</body></html>")
+
+    with FetchCache(tmp_path / "fetch.duckdb") as cache:
+        http_fetcher = CachedFetcher(http, cache, acquisition_strategy="http")
+        browser_fetcher = CachedFetcher(
+            browser,
+            cache,
+            acquisition_strategy="browser",
+        )
+
+        http_result = http_fetcher.fetch(FetchRequest("https://example.com/app"))
+        browser_result = browser_fetcher.fetch(
+            FetchRequest("https://example.com/app")
+        )
+
+        assert http_result.html == "<html><body>http</body></html>"
+        assert browser_result.html == "<html><body>browser</body></html>"
+        assert http.calls == 1
+        assert browser.calls == 1

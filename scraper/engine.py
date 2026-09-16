@@ -6,7 +6,13 @@ from urllib.parse import urlparse
 from scraper.database.repository import LeadRepository
 from scraper.concurrency import BoundedExecutor, ConcurrencyConfig, DomainConcurrencyLimiter
 from scraper.discovery import DiscoveredPage, SearchRequest, WebDiscovery
-from scraper.acquisition import AutoFetcher, FetchRequest, HTTPFetcherAdapter
+from scraper.acquisition import (
+    AutoFetcher,
+    CachedFetcher,
+    FetchRequest,
+    HTTPFetcherAdapter,
+)
+from scraper.cache.fetch import FetchCache
 from scraper.fetcher import FetchedPage, PageFetcher
 from scraper.models import Lead
 from scraper.normalizer import LeadNormalizer
@@ -48,6 +54,7 @@ class ScraperEngine:
         parser: PageParser,
         normalizer: LeadNormalizer,
         fetcher: PageFetcher | None = None,
+        fetch_cache: FetchCache | None = None,
         quality: LeadQuality | None = None,
         relevance: KeywordRelevance | None = None,
         location_relevance: LocationRelevance | None = None,
@@ -58,11 +65,20 @@ class ScraperEngine:
     ) -> None:
         self.discovery = discovery
         self.fetcher = fetcher
-        self.acquisition = (
+        acquisition = (
             AutoFetcher()
             if fetcher is None
             else HTTPFetcherAdapter(fetcher)
         )
+
+        if fetch_cache is not None:
+            acquisition = CachedFetcher(
+                acquisition,
+                fetch_cache,
+                acquisition_strategy="auto" if fetcher is None else "http",
+            )
+
+        self.acquisition = acquisition
         self.parser = parser
         self.normalizer = normalizer
         self.quality = quality or LeadQuality()

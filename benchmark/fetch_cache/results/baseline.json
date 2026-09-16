@@ -1,0 +1,36 @@
+{
+  "benchmark": "fetch-cache-benefit",
+  "workload": {
+    "url": "http://127.0.0.1:8766/static",
+    "iterations": 20,
+    "acquisition_strategy": "http"
+  },
+  "baseline": {
+    "iterations": 20,
+    "mean_ms": 63.536692401976325,
+    "median_ms": 53.90398850431666,
+    "min_ms": 51.89980799332261,
+    "max_ms": 180.61665701679885,
+    "successful_fetches": 20,
+    "content_bytes": 267,
+    "underlying_fetch_calls": 20
+  },
+  "cached": {
+    "iterations": 20,
+    "cache_misses": 1,
+    "cache_hits": 19,
+    "hit_rate": 0.95,
+    "mean_ms": 6.376189203001559,
+    "median_ms": 2.389749512076378,
+    "min_ms": 2.0463629625737667,
+    "max_ms": 81.33083500433713,
+    "successful_fetches": 20,
+    "content_bytes": 267,
+    "underlying_fetch_calls": 1,
+    "cached_content_hash": "07c9fa7702ecd920fdc2a48d6ba84e9e3be5a788559b9e4acb863efabad8d4a5",
+    "database_size_bytes": 12288
+  },
+  "speedup": 9.964681156585936,
+  "mean_latency_reduction": 0.8996455597237979,
+  "underlying_call_reduction": 0.95
+}
