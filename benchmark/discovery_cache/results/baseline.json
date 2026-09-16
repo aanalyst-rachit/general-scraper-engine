@@ -1,0 +1,35 @@
+{
+  "benchmark": "discovery-cache-benefit",
+  "workload": {
+    "keyword": "software company",
+    "location": "Lucknow",
+    "requirements": "contact",
+    "limit": 5
+  },
+  "provider": {
+    "delay_ms": 10.0,
+    "baseline_calls": 100,
+    "cached_calls": 5
+  },
+  "baseline": {
+    "iterations": 20,
+    "mean_ms": 51.42348690133076,
+    "median_ms": 51.13240150967613,
+    "min_ms": 50.77314598020166,
+    "max_ms": 57.049422001000494
+  },
+  "cached": {
+    "iterations": 20,
+    "hits": 19,
+    "misses": 1,
+    "hit_rate": 0.95,
+    "mean_ms": 18.892764550400898,
+    "median_ms": 10.366437985794619,
+    "min_ms": 9.026093990541995,
+    "max_ms": 173.78896800801158,
+    "provider_calls": 5,
+    "database_size_bytes": 12288
+  },
+  "speedup": 2.7218614175890723,
+  "provider_call_reduction": 0.95
+}

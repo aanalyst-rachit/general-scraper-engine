@@ -89,12 +89,14 @@ This tracker is the locked v1.0.2 implementation scope. Competitor features from
 
 ## PHASE 6 — Discovery Cache
 
-- [ ] Design discovery cache schema
-- [ ] Define canonical cache key including provider/config/query/search parameters
-- [ ] Store creation and expiry timestamps
-- [ ] Define TTL policy by discovery source/use case
-- [ ] Implement DuckDB-backed discovery cache only after benchmark validates benefit
-- [ ] Measure cache hit/miss behavior
+- [x] Design discovery cache schema
+- [x] Define canonical cache key including provider/config/query/search parameters
+- [x] Store creation and expiry timestamps
+- [x] Define TTL policy by discovery source/use case
+- [x] Implement DuckDB-backed discovery cache only after benchmark validates benefit
+  - Benchmark: 20 iterations, 95% cache hit rate, 95% provider-call reduction, 2.72x mean latency speedup.
+- [x] Measure cache hit/miss behavior
+  - DuckDB benchmark: 19 hits / 1 miss; provider calls reduced from 100 to 5.
 
 ## PHASE 7 — Fetch Cache
 

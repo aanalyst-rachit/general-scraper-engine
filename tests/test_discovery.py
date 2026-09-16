@@ -826,3 +826,126 @@ def test_provider_router_falls_back_after_unexpected_exception():
     assert len(result.pages) == 1
     assert fallback.queries == [("doctor", 5)]
     assert result.failure is None
+
+
+def test_discovery_cache_avoids_repeated_provider_calls(tmp_path):
+    from scraper.cache.discovery import DiscoveryCache
+
+    provider = FakeProvider([
+        DiscoveredPage(
+            url="https://example.com/cached",
+            title="Cached Result",
+        )
+    ])
+    cache = DiscoveryCache(tmp_path / "discovery.duckdb")
+    discovery = WebDiscovery(
+        providers=[provider],
+        cache=cache,
+    )
+
+    request = SearchRequest(
+        keyword="doctor",
+        location="Shahjahanpur",
+        limit=1,
+    )
+
+    first = discovery.discover(request)
+    first_call_count = len(provider.queries)
+
+    second = discovery.discover(request)
+
+    assert second == first
+    assert first_call_count == 1
+    assert len(provider.queries) == first_call_count
+
+
+def test_discovery_cache_separates_search_limits(tmp_path):
+    from scraper.cache.discovery import DiscoveryCache
+
+    provider = FakeProvider([
+        DiscoveredPage(url="https://example.com/1"),
+        DiscoveredPage(url="https://example.com/2"),
+    ])
+    cache = DiscoveryCache(tmp_path / "discovery.duckdb")
+    discovery = WebDiscovery(
+        providers=[provider],
+        cache=cache,
+    )
+
+    discovery.discover(
+        SearchRequest(
+            keyword="doctor",
+            location="Shahjahanpur",
+            limit=1,
+        )
+    )
+    discovery.discover(
+        SearchRequest(
+            keyword="doctor",
+            location="Shahjahanpur",
+            limit=2,
+        )
+    )
+
+    assert len(provider.queries) == 2
+    assert provider.queries == [
+        ("doctor Shahjahanpur", 1),
+        ("doctor Shahjahanpur", 2),
+    ]
+
+
+def test_empty_provider_results_are_not_cached(tmp_path):
+    from scraper.cache.discovery import DiscoveryCache
+
+    provider = FakeProvider([])
+    cache = DiscoveryCache(tmp_path / "discovery.duckdb")
+    discovery = WebDiscovery(
+        providers=[provider],
+        cache=cache,
+    )
+
+    request = SearchRequest(
+        keyword="doctor",
+        location="Shahjahanpur",
+        limit=1,
+    )
+
+    discovery.discover(request)
+    discovery.discover(request)
+
+    assert len(provider.queries) == 12
+
+
+def test_router_discovery_cache_avoids_repeated_provider_calls(tmp_path):
+    from scraper.cache.discovery import DiscoveryCache
+
+    primary = FakeProvider([
+        DiscoveredPage(url="https://primary.example/doctor")
+    ])
+    fallback = FakeProvider([
+        DiscoveredPage(url="https://fallback.example/doctor")
+    ])
+    cache = DiscoveryCache(tmp_path / "discovery.duckdb")
+    discovery = WebDiscovery(
+        primary_provider=primary,
+        fallback_providers=[fallback],
+        cache=cache,
+    )
+
+    request = SearchRequest(
+        keyword="doctor",
+        location="Shahjahanpur",
+        limit=1,
+    )
+
+    first = discovery.discover(request)
+    first_primary_calls = len(primary.queries)
+    first_fallback_calls = len(fallback.queries)
+
+    second = discovery.discover(request)
+
+    assert second == first
+    assert first_primary_calls == 1
+    assert first_fallback_calls == 0
+    assert len(primary.queries) == first_primary_calls
+    assert len(fallback.queries) == first_fallback_calls

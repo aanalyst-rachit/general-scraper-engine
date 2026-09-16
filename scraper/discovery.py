@@ -1,8 +1,10 @@
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Protocol
+from typing import Any, Protocol
 
 import httpx
+
+from scraper.cache.discovery import DiscoveryCache
 
 
 @dataclass(frozen=True)
@@ -107,9 +109,76 @@ class ProviderRouter:
         self,
         primary: DiscoveryProvider,
         fallbacks: list[DiscoveryProvider] | None = None,
+        cache: DiscoveryCache | None = None,
     ) -> None:
         self.primary = primary
         self.fallbacks = fallbacks or []
+        self.cache = cache
+
+    @staticmethod
+    def _cache_provider_identity(provider: DiscoveryProvider) -> str:
+        provider_type = type(provider)
+
+        known_identities = {
+            "BraveSearchProvider": "brave",
+            "SearXNGProvider": "searxng",
+        }
+
+        return known_identities.get(
+            provider_type.__name__,
+            f"{provider_type.__module__}.{provider_type.__qualname__}",
+        )
+
+    @staticmethod
+    def _cache_provider_config(
+        provider: DiscoveryProvider,
+    ) -> dict[str, Any]:
+        provider_name = type(provider).__name__
+
+        if provider_name == "BraveSearchProvider":
+            return {
+                "country": str(getattr(provider, "country", "")),
+                "search_lang": str(getattr(provider, "search_lang", "")),
+            }
+
+        if provider_name == "SearXNGProvider":
+            return {
+                "base_url": str(getattr(provider, "base_url", "")),
+            }
+
+        return {}
+
+    def _search_provider(
+        self,
+        provider: DiscoveryProvider,
+        query: str,
+        limit: int,
+    ) -> list[DiscoveredPage]:
+        if self.cache is None:
+            return provider.search(query, limit=limit)
+
+        cached = self.cache.get(
+            provider=self._cache_provider_identity(provider),
+            provider_config=self._cache_provider_config(provider),
+            query=query,
+            search_parameters={"limit": limit},
+        )
+
+        if cached is not None:
+            return cached.results
+
+        pages = provider.search(query, limit=limit)
+
+        if pages:
+            self.cache.set(
+                provider=self._cache_provider_identity(provider),
+                provider_config=self._cache_provider_config(provider),
+                query=query,
+                search_parameters={"limit": limit},
+                results=pages,
+            )
+
+        return pages
 
     @property
     def providers(self) -> list[DiscoveryProvider]:
@@ -128,7 +197,7 @@ class ProviderRouter:
 
         for provider in self.providers:
             try:
-                pages = provider.search(query, limit=limit)
+                pages = self._search_provider(provider, query, limit)
             except (TimeoutError, httpx.TimeoutException):
                 last_failure = ProviderFailureCategory.TIMEOUT
                 continue
@@ -179,18 +248,88 @@ class WebDiscovery:
         primary_provider: DiscoveryProvider | None = None,
         fallback_providers: list[DiscoveryProvider] | None = None,
         quality_policy: DiscoveryQualityPolicy | None = None,
+        cache: DiscoveryCache | None = None,
     ):
         self.quality_policy = quality_policy
+        self.cache = cache
 
         if primary_provider is not None:
             self.router = ProviderRouter(
                 primary_provider,
                 fallback_providers,
+                cache=cache,
             )
             self.providers = self.router.providers
         else:
             self.router = None
             self.providers = providers or []
+
+    def _cache_provider_identity(self, provider: DiscoveryProvider) -> str:
+        provider_type = type(provider)
+
+        known_identities = {
+            "BraveSearchProvider": "brave",
+            "SearXNGProvider": "searxng",
+        }
+
+        return known_identities.get(
+            provider_type.__name__,
+            f"{provider_type.__module__}.{provider_type.__qualname__}",
+        )
+
+    def _cache_provider_config(
+        self,
+        provider: DiscoveryProvider,
+    ) -> dict[str, Any]:
+        provider_name = type(provider).__name__
+
+        if provider_name == "BraveSearchProvider":
+            return {
+                "country": str(getattr(provider, "country", "")),
+                "search_lang": str(getattr(provider, "search_lang", "")),
+            }
+
+        if provider_name == "SearXNGProvider":
+            return {
+                "base_url": str(getattr(provider, "base_url", "")),
+            }
+
+        return {}
+
+    def _cached_search(
+        self,
+        provider: DiscoveryProvider,
+        query: str,
+        limit: int,
+    ) -> list[DiscoveredPage]:
+        if self.cache is None:
+            return provider.search(query, limit=limit)
+
+        provider_identity = self._cache_provider_identity(provider)
+        provider_config = self._cache_provider_config(provider)
+        search_parameters = {"limit": limit}
+
+        cached = self.cache.get(
+            provider=provider_identity,
+            provider_config=provider_config,
+            query=query,
+            search_parameters=search_parameters,
+        )
+        if cached is not None:
+            return cached.results
+
+        pages = provider.search(query, limit=limit)
+
+        if pages:
+            self.cache.set(
+                provider=provider_identity,
+                provider_config=provider_config,
+                query=query,
+                search_parameters=search_parameters,
+                results=pages,
+            )
+
+        return pages
 
     def build_queries(self, request: SearchRequest) -> list[str]:
         keyword = request.keyword.strip()
@@ -251,7 +390,11 @@ class WebDiscovery:
                 )
                 pages = search_result.pages
             else:
-                pages = provider.search(query, limit=remaining)
+                pages = self._cached_search(
+                    provider,
+                    query,
+                    remaining,
+                )
 
             for page in pages:
                 url = page.url.strip()
