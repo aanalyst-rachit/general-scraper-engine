@@ -149,17 +149,28 @@ This tracker is the locked v1.0.2 implementation scope. Competitor features from
 
 ## PHASE 10 — Map & Crawl
 
-- [ ] Design bounded site-map operation
-- [ ] Discover internal URLs from a seed URL
-- [ ] Canonicalize URLs
-- [ ] Deduplicate URLs
-- [ ] Support max pages
-- [ ] Support max depth
-- [ ] Support allowed domains
-- [ ] Support include/exclude URL patterns
-- [ ] Respect robots policy
-- [ ] Reuse acquisition and extraction layers
-- [ ] Implement bounded crawler rather than Firecrawl-scale distributed crawling
+- [x] Design bounded site-map operation
+  - Added `SiteCrawler` with bounded frontier processing and configurable global/per-domain concurrency.
+- [x] Discover internal URLs from a seed URL
+  - Crawls links discovered from fetched HTML and keeps the seed-to-page traversal bounded by depth and page limits.
+- [x] Canonicalize URLs
+  - Normalizes HTTP(S) scheme/host/path, resolves relative URLs, preserves query strings, and removes fragments.
+- [x] Deduplicate URLs
+  - Canonical URLs are tracked across queued, visited, and discovered candidates so duplicate links are fetched once.
+- [x] Support max pages
+  - Enforces a strict returned-page budget, including concurrent frontier processing and include-pattern scenarios.
+- [x] Support max depth
+  - Traversal only expands links while the current page depth is below the configured maximum.
+- [x] Support allowed domains
+  - Defaults to same-domain crawling and supports an explicit allowed-domain set for bounded cross-domain crawling.
+- [x] Support include/exclude URL patterns
+  - Applies glob-style include/exclude filters to candidate URLs while retaining seed fetching for discovery.
+- [x] Respect robots policy
+  - Reuses the existing acquisition layer, including `PageFetcher` robots enforcement; blocked URLs never reach the HTTP client.
+- [x] Reuse acquisition and extraction layers
+  - Fetches through `AcquisitionStrategy`/`FetchRequest` and returns `FetchedPage` objects that can be processed directly by the existing `PageParser`/extraction pipeline.
+- [x] Implement bounded crawler rather than Firecrawl-scale distributed crawling
+  - Uses a local bounded executor and domain limiter; no distributed or unbounded crawl scheduling is introduced.
 
 ## PHASE 11 — External Scraping Provider Adapters
 
