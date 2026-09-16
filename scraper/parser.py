@@ -1,20 +1,34 @@
-import json
 import re
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 
+from scraper.extraction import ExtractionStrategy
+from scraper.registry import ExtractionRegistry
 from scraper.fetcher import FetchedPage
 from scraper.models import Lead
+from scraper.structured_data import StructuredDataExtractor
 
 
 class PageParser:
+    def __init__(
+        self,
+        structured_data: ExtractionStrategy | None = None,
+        extraction_registry: ExtractionRegistry | None = None,
+    ) -> None:
+        if extraction_registry is None:
+            extraction_registry = ExtractionRegistry()
+            extraction_registry.register(
+                structured_data or StructuredDataExtractor()
+            )
+        self.extraction_registry = extraction_registry
+
     def parse(self, page: FetchedPage, category: str = "") -> Lead | None:
         if not page.ok:
             return None
 
         soup = BeautifulSoup(page.html, "lxml")
-        structured = self._parse_json_ld(soup)
+        structured = self.extraction_registry.extract(page.html) or {}
 
         name = self._first_nonempty(
             structured.get("name", ""), 
@@ -69,102 +83,6 @@ class PageParser:
             source_name="web",
             extra={"title": self._text(soup.title)},
         )
-
-    def _parse_json_ld(self, soup: BeautifulSoup) -> dict[str, str]:
-        for script in soup.find_all("script", attrs={"type": "application/ld+json"}):
-            raw = script.string or script.get_text()
-            if not raw.strip():
-                continue
-
-            try:
-                data = json.loads(raw)
-            except (json.JSONDecodeError, TypeError):
-                continue
-
-            candidates = data if isinstance(data, list) else [data]
-
-            for item in candidates:
-                if not isinstance(item, dict):
-                    continue
-
-                if "@graph" in item and isinstance(item["@graph"], list):
-                    candidates.extend(
-                        node for node in item["@graph"]
-                        if isinstance(node, dict)
-                    )
-
-                if self._looks_like_entity(item):
-                    return self._structured_fields(item)
-
-        return {}
-
-    def _looks_like_entity(self, data: dict) -> bool:
-        entity_type = data.get("@type", "")
-
-        if isinstance(entity_type, list):
-            entity_types = {str(value).lower() for value in entity_type}
-        else:
-            entity_types = {str(entity_type).lower()}
-
-        useful_types = {
-            "person",
-            "organization",
-            "localbusiness",
-            "professionalservice",
-            "medicalbusiness",
-            "physician",
-            "dentist",
-            "restaurant",
-            "store",
-            "educationalorganization",
-            "realestateagent",
-        }
-
-        return bool(entity_types & useful_types) and bool(data.get("name"))
-
-    def _structured_fields(self, data: dict) -> dict[str, str]:
-        address = data.get("address", "")
-
-        if isinstance(address, dict):
-            parts = [
-                address.get("streetAddress", ""), 
-                address.get("addressLocality", ""), 
-                address.get("addressRegion", ""), 
-                address.get("postalCode", ""), 
-                address.get("addressCountry", ""), 
-            ]
-            address_text = ", ".join(
-                str(part).strip() for part in parts if str(part).strip()
-            )
-        else:
-            address_text = str(address).strip()
-
-        category = data.get("category", "")
-        if isinstance(category, list):
-            category = ", ".join(str(value) for value in category)
-
-        if not str(category).strip():
-            entity_type = data.get("@type", "")
-            if isinstance(entity_type, list):
-                category = ", ".join(str(value) for value in entity_type)
-            else:
-                category = str(entity_type).strip()
-
-        return {
-            "name": str(data.get("name", "")).strip(),
-            "description": str(data.get("description", "")).strip(),
-            "telephone": str(data.get("telephone", "")).strip(),
-            "email": str(data.get("email", "")).strip(),
-            "url": str(data.get("url", "")).strip(),
-            "category": str(category).strip(),
-            "address": address_text,
-            "address_locality": str(
-                address.get("addressLocality", "") if isinstance(address, dict) else ""
-            ).strip(),
-            "address_region": str(
-                address.get("addressRegion", "") if isinstance(address, dict) else ""
-            ).strip(),
-        }
 
     def _meta(self, soup: BeautifulSoup, name: str) -> str:
         tag = soup.find("meta", attrs={"property": name})

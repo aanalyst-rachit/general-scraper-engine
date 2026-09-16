@@ -17,6 +17,7 @@ from scraper.fetcher import FetchedPage, PageFetcher
 from scraper.models import Lead
 from scraper.normalizer import LeadNormalizer
 from scraper.parser import PageParser
+from scraper.registry import ParserRegistry
 from scraper.quality import LeadQuality
 from scraper.relevance import CategoryRelevance, KeywordRelevance, LocationRelevance, RequirementsRelevance
 
@@ -53,6 +54,7 @@ class ScraperEngine:
         discovery: WebDiscovery,
         parser: PageParser,
         normalizer: LeadNormalizer,
+        parser_registry: ParserRegistry | None = None,
         fetcher: PageFetcher | None = None,
         fetch_cache: FetchCache | None = None,
         quality: LeadQuality | None = None,
@@ -80,6 +82,7 @@ class ScraperEngine:
 
         self.acquisition = acquisition
         self.parser = parser
+        self.parser_registry = parser_registry or ParserRegistry()
         self.normalizer = normalizer
         self.quality = quality or LeadQuality()
         self.relevance = relevance
@@ -177,7 +180,19 @@ class ScraperEngine:
             fetched.append(page)
 
             try:
-                lead = self.parser.parse(page, category=request.keyword)
+                parser = self.parser_registry.resolve(
+                    page.final_url or page.url
+                )
+                if parser is None:
+                    parser = self.parser
+
+                lead = parser.parse(page, category=request.keyword)
+
+                if parser is not self.parser and lead is None:
+                    lead = self.parser.parse(
+                        page,
+                        category=request.keyword,
+                    )
             except Exception as exc:
                 parse_failures.append(
                     ParseFailure(

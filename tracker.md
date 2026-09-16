@@ -112,14 +112,22 @@ This tracker is the locked v1.0.2 implementation scope. Competitor features from
 
 ## PHASE 8 — Content & Extraction Layer
 
-- [ ] Introduce content-quality classification
-- [ ] Preserve existing generic parser
-- [ ] Add structured-data extraction path (Schema.org/JSON-LD)
-- [ ] Define extraction strategy interface
-- [ ] Introduce parser/extractor registry
-- [ ] Route site-specific parser before generic fallback
-- [ ] Keep deterministic extraction ahead of optional AI extraction
-- [ ] Evaluate Markdown representation as an optional normalized content format
+- [x] Introduce content-quality classification
+  - Added deterministic classification for valid, empty, thin, JS-shell, HTTP-error, and block/challenge pages; browser fallback remains limited to content-quality cases that can benefit from rendered acquisition.
+- [x] Preserve existing generic parser
+  - Existing HTML/meta/address/email/phone extraction behavior preserved while JSON-LD extraction was separated into its own strategy.
+- [x] Add structured-data extraction path (Schema.org/JSON-LD)
+  - Added deterministic Schema.org/JSON-LD extraction with support for entity types, `@graph`, arrays, type lists, malformed-script tolerance, and structured address/category fields.
+- [x] Define extraction strategy interface
+  - Added `ExtractionStrategy` protocol returning normalized extraction fields or no result.
+- [x] Introduce parser/extractor registry
+  - Added `ParserRegistry` for domain-specific parsers and `ExtractionRegistry` for ordered extraction strategies.
+- [x] Route site-specific parser before generic fallback
+  - Engine resolves registered parsers by domain first, uses the generic parser for unknown domains, and falls back to the generic parser when a registered parser returns no lead.
+- [x] Keep deterministic extraction ahead of optional AI extraction
+  - Deterministic extraction is the only active extraction path; ordered `ExtractionRegistry` provides the extension point for future optional strategies without making AI a prerequisite.
+- [x] Evaluate Markdown representation as an optional normalized content format
+  - Evaluated against the current architecture. Raw HTML remains the canonical representation because deterministic DOM and JSON-LD extraction depend on HTML structure/metadata; Markdown is not required as an intermediate representation and no conversion dependency is introduced.
 
 ## PHASE 9 — Lead Quality & Relevance
 

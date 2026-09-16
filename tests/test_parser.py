@@ -1,5 +1,6 @@
 from scraper.fetcher import FetchedPage
 from scraper.parser import PageParser
+from scraper.registry import ExtractionRegistry
 
 
 def make_page(html, url="https://example.com/page"):
@@ -311,3 +312,53 @@ def test_parse_ignores_invalid_json_ld_and_uses_html_fallback():
 
     assert lead is not None
     assert lead.name == "Fallback Clinic"
+
+
+
+def test_parser_uses_extraction_registry_for_deterministic_extraction():
+    class StubExtractor:
+        def extract(self, html):
+            return {
+                "name": "Registry Extracted Doctor",
+                "description": "Deterministic description",
+            }
+
+    registry = ExtractionRegistry()
+    registry.register(StubExtractor())
+
+    lead = PageParser(
+        extraction_registry=registry,
+    ).parse(
+        make_page(
+            "<html><head><title>Fallback</title></head>"
+            "<body>Plain content</body></html>"
+        )
+    )
+
+    assert lead is not None
+    assert lead.name == "Registry Extracted Doctor"
+    assert lead.description == "Deterministic description"
+
+
+def test_generic_parser_uses_html_as_canonical_content_representation():
+    html = """
+    <html>
+      <head>
+        <title>HTML Canonical Doctor</title>
+        <meta name="description" content="Doctor profile">
+      </head>
+      <body>
+        <h1>HTML Canonical Doctor</h1>
+        <address>Shahjahanpur</address>
+      </body>
+    </html>
+    """
+
+    lead = PageParser().parse(
+        make_page(html, url="https://example.com/doctor")
+    )
+
+    assert lead is not None
+    assert lead.name == "HTML Canonical Doctor"
+    assert lead.description == "Doctor profile"
+    assert lead.address == "Shahjahanpur"
