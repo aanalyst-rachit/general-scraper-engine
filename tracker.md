@@ -193,18 +193,42 @@ This tracker is the locked v1.0.2 implementation scope. Competitor features from
 
 ## PHASE 12 — Specialized Source Adapters
 
+**Goal:** Build specialized public-page parsers/adapters for Google Maps, Justdial, OLX, and LinkedIn, all normalized into the common `Lead` model.
+
 - [x] Define SourceAdapter architecture
-  - Added `SourceAdapter` protocol and `SourceAdapterRegistry`; the contract accepts the canonical `SearchRequest` and returns `Lead` records, with focused registry/adapter tests.
-- [x] Evaluate Google Search adapter
-- [x] Evaluate Google Maps adapter
-  - Added an opt-in `GoogleMapsBrowserAdapter` using Playwright for the public Google Maps search page and BeautifulSoup for rendered HTML parsing.
-  - Added synthetic DOM tests and a captured real Google Maps page fixture regression.
-  - Browser adapter detects challenge/block markers and stops without attempting CAPTCHA or bot-block bypass.
-  - Existing `GoogleMapsAdapter` using the official Places API remains unchanged.
-- [ ] Compare official APIs vs direct browser scraping vs external providers
-- [ ] Prefer official API where cost, coverage, and terms justify it
-- [ ] Add specialized adapter only when benchmark/use-case evidence justifies maintenance cost
-- [ ] Defer large collections of site-specific parsers
+  - Common `SearchRequest → SourceAdapter → list[Lead]` contract.
+- [x] Build Google Maps browser parser
+  - Playwright for public-page rendering.
+  - BeautifulSoup for rendered HTML parsing.
+  - Real-page fixture and parser regression tests.
+  - Detect challenge/block pages and stop safely; never bypass CAPTCHA or bot protections.
+- [x] Build Justdial specialized parser
+  - Audit public search/listing DOM.
+  - Implement Playwright + BeautifulSoup parsing where required.
+  - Normalize results into `Lead`.
+  - Add fixtures and focused tests.
+- [ ] Build OLX specialized parser
+  - Audit public listing/search DOM.
+  - Implement parser and `Lead` normalization.
+  - Add fixtures and focused tests.
+- [ ] Build LinkedIn specialized parser
+  - Parse publicly accessible pages only.
+  - Normalize profile/company data into `Lead`.
+  - Login/restricted/challenge pages must stop safely.
+  - Add fixtures and focused tests.
+- [ ] Common parser validation
+  - Handle missing fields safely.
+  - Respect requested result limits.
+  - Deduplicate source results.
+  - Preserve source URLs/source names.
+  - Detect challenge/block pages.
+  - Add synthetic and real-page fixture regression coverage where practical.
+- [ ] Integrate all specialized adapters
+  - Register adapters in `SourceAdapterRegistry`.
+  - Verify source selection resolves to the correct specialized parser.
+  - Run focused and full regression tests.
+- [ ] Document specialized source adapters and public-access boundaries
+- [ ] Complete Phase 12 tracker + git checkpoint
 
 ## PHASE 13 — Anti-Blocking / Operational Resilience
 
