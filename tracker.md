@@ -75,15 +75,17 @@ This tracker is the locked v1.0.2 implementation scope. Competitor features from
 
 ## PHASE 5 — Discovery Provider Routing
 
-- [ ] Preserve DiscoveryProvider protocol
-- [ ] Add provider router/policy layer
-- [ ] Support primary provider and explicit fallback providers
-- [ ] Categorize provider failures: no-results, timeout, auth, rate-limit, server-error, invalid-response
-- [ ] Define quality-based fallback policy separately from failure fallback
-- [ ] Preserve existing query deduplication
-- [ ] Preserve existing per-run URL deduplication
-- [ ] Evaluate SearXNG / Brave as current native providers
-- [ ] Evaluate optional external search providers before implementation
+- [x] Preserve DiscoveryProvider protocol
+- [x] Add provider router/policy layer
+- [x] Support primary provider and explicit fallback providers
+- [x] Categorize provider failures: no-results, timeout, auth, rate-limit, server-error, invalid-response
+- [x] Define quality-based fallback policy separately from failure fallback
+- [x] Preserve existing query deduplication
+- [x] Preserve existing per-run URL deduplication
+- [x] Evaluate SearXNG / Brave as current native providers
+  - Brave Search Web API and SearXNG JSON providers are implemented, tested, CLI-integrated, and documented.
+- [x] Evaluate optional external search providers before implementation
+  - No additional external provider was selected for implementation; the provider-agnostic protocol/router remains available for future integrations.
 
 ## PHASE 6 — Discovery Cache
 
