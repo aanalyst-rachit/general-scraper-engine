@@ -193,9 +193,14 @@ This tracker is the locked v1.0.2 implementation scope. Competitor features from
 
 ## PHASE 12 — Specialized Source Adapters
 
-- [ ] Define SourceAdapter architecture
-- [ ] Evaluate Google Search adapter
-- [ ] Evaluate Google Maps adapter
+- [x] Define SourceAdapter architecture
+  - Added `SourceAdapter` protocol and `SourceAdapterRegistry`; the contract accepts the canonical `SearchRequest` and returns `Lead` records, with focused registry/adapter tests.
+- [x] Evaluate Google Search adapter
+- [x] Evaluate Google Maps adapter
+  - Added an opt-in `GoogleMapsBrowserAdapter` using Playwright for the public Google Maps search page and BeautifulSoup for rendered HTML parsing.
+  - Added synthetic DOM tests and a captured real Google Maps page fixture regression.
+  - Browser adapter detects challenge/block markers and stops without attempting CAPTCHA or bot-block bypass.
+  - Existing `GoogleMapsAdapter` using the official Places API remains unchanged.
 - [ ] Compare official APIs vs direct browser scraping vs external providers
 - [ ] Prefer official API where cost, coverage, and terms justify it
 - [ ] Add specialized adapter only when benchmark/use-case evidence justifies maintenance cost
