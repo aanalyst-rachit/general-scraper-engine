@@ -1,4 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <rect width="64" height="64" rx="14" fill="#111827"/>
-  <path d="M18 18h28v8H26v8h16v8H26v12h-8V18z" fill="#ffffff"/>
+  <text x="32" y="39"
+        text-anchor="middle"
+        font-family="Arial, Helvetica, sans-serif"
+        font-size="20"
+        font-weight="800"
+        fill="#ffffff"
+        letter-spacing="-1">GSE</text>
 </svg>

@@ -44,7 +44,7 @@ theme:
     code: JetBrains Mono
 
   favicon: assets/favicon.svg
-  logo: material/web
+  logo: assets/favicon.svg
 
 extra:
   social:
