@@ -114,6 +114,8 @@ class ProviderRouter:
         self.primary = primary
         self.fallbacks = fallbacks or []
         self.cache = cache
+        self.cache_hits = 0
+        self.cache_misses = 0
 
     @staticmethod
     def _cache_provider_identity(provider: DiscoveryProvider) -> str:
@@ -165,8 +167,10 @@ class ProviderRouter:
         )
 
         if cached is not None:
+            self.cache_hits += 1
             return cached.results
 
+        self.cache_misses += 1
         pages = provider.search(query, limit=limit)
 
         if pages:
@@ -252,6 +256,8 @@ class WebDiscovery:
     ):
         self.quality_policy = quality_policy
         self.cache = cache
+        self.cache_hits = 0
+        self.cache_misses = 0
 
         if primary_provider is not None:
             self.router = ProviderRouter(
@@ -316,8 +322,10 @@ class WebDiscovery:
             search_parameters=search_parameters,
         )
         if cached is not None:
+            self.cache_hits += 1
             return cached.results
 
+        self.cache_misses += 1
         pages = provider.search(query, limit=limit)
 
         if pages:

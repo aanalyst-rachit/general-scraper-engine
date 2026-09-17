@@ -828,6 +828,45 @@ def test_provider_router_falls_back_after_unexpected_exception():
     assert result.failure is None
 
 
+def test_provider_router_tracks_discovery_cache_hits_and_misses(tmp_path):
+    from scraper.cache.discovery import DiscoveryCache
+    from scraper.discovery import ProviderRouter
+
+    provider = FakeProvider([
+        DiscoveredPage(url="https://example.com/cached"),
+    ])
+    cache = DiscoveryCache(tmp_path / "discovery.duckdb")
+    router = ProviderRouter(provider, cache=cache)
+
+    first = router.search("doctor", limit=1)
+    second = router.search("doctor", limit=1)
+
+    assert first.pages == second.pages
+    assert len(provider.queries) == 1
+    assert router.cache_hits == 1
+    assert router.cache_misses == 1
+
+
+def test_web_discovery_tracks_discovery_cache_hits_and_misses(tmp_path):
+    from scraper.cache.discovery import DiscoveryCache
+    from scraper.discovery import WebDiscovery
+
+    provider = FakeProvider([
+        DiscoveredPage(url="https://example.com/cached"),
+    ])
+    cache = DiscoveryCache(tmp_path / "discovery.duckdb")
+    discovery = WebDiscovery(providers=[provider], cache=cache)
+
+    request = SearchRequest(keyword="doctor", location="", limit=1)
+    first = discovery.discover(request)
+    second = discovery.discover(request)
+
+    assert first == second
+    assert len(provider.queries) == 1
+    assert discovery.cache_hits == 1
+    assert discovery.cache_misses == 1
+
+
 def test_discovery_cache_avoids_repeated_provider_calls(tmp_path):
     from scraper.cache.discovery import DiscoveryCache
 

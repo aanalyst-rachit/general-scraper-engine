@@ -16,6 +16,9 @@ class ContentQuality(str, Enum):
     JS_SHELL = "js_shell"
     ERROR_PAGE = "error_page"
     BLOCK_PAGE = "block_page"
+    ACCESS_BLOCKED = "access_blocked"
+    RATE_LIMITED = "rate_limited"
+    AUTH_REQUIRED = "auth_required"
 
 
 @dataclass(frozen=True)
@@ -70,6 +73,24 @@ class ContentQualityClassifier:
     }
 
     def classify(self, page: FetchedPage) -> ContentQualityResult:
+        if page.status_code == 401:
+            return ContentQualityResult(
+                ContentQuality.AUTH_REQUIRED,
+                "HTTP 401 authentication required",
+            )
+
+        if page.status_code == 403:
+            return ContentQualityResult(
+                ContentQuality.ACCESS_BLOCKED,
+                "HTTP 403 access blocked",
+            )
+
+        if page.status_code == 429:
+            return ContentQualityResult(
+                ContentQuality.RATE_LIMITED,
+                "HTTP 429 rate limited",
+            )
+
         if page.status_code >= 400:
             return ContentQualityResult(
                 ContentQuality.ERROR_PAGE,

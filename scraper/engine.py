@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from uuid import uuid4
 from urllib.parse import urlparse
 
 from scraper.database.repository import LeadRepository
+from scraper.database.run_metrics import RunMetrics, RunMetricsRepository
 from scraper.concurrency import BoundedExecutor, ConcurrencyConfig, DomainConcurrencyLimiter
 from scraper.discovery import DiscoveredPage, SearchRequest, WebDiscovery
 from scraper.acquisition import (
@@ -67,6 +71,7 @@ class ScraperEngine:
         category_relevance: CategoryRelevance | None = None,
         requirements_relevance: RequirementsRelevance | None = None,
         repository: LeadRepository | None = None,
+        run_metrics_repository: RunMetricsRepository | None = None,
         max_concurrency: int | ConcurrencyConfig = 4,
     ) -> None:
         self.discovery = discovery
@@ -94,6 +99,7 @@ class ScraperEngine:
         self.category_relevance = category_relevance
         self.requirements_relevance = requirements_relevance
         self.repository = repository
+        self.run_metrics_repository = run_metrics_repository
 
         if isinstance(max_concurrency, ConcurrencyConfig):
             self.concurrency = max_concurrency
@@ -102,6 +108,103 @@ class ScraperEngine:
 
         # Backward-compatible alias
         self.max_concurrency = self.concurrency.global_limit
+
+    @staticmethod
+    def _acquisition_metrics(acquisition: object) -> dict[str, int]:
+        metrics = {
+            "browser_fallback_count": 0,
+            "cache_hits": 0,
+            "cache_misses": 0,
+        }
+
+        current = acquisition
+        visited: set[int] = set()
+
+        while current is not None and id(current) not in visited:
+            visited.add(id(current))
+
+            for name in metrics:
+                value = getattr(current, name, 0)
+                if isinstance(value, int):
+                    metrics[name] += value
+
+            current = getattr(current, "acquisition", None)
+
+        return metrics
+
+    @staticmethod
+    def _discovery_cache_metrics(discovery: object) -> dict[str, int]:
+        source = getattr(discovery, "router", None) or discovery
+
+        return {
+            "cache_hits": getattr(source, "cache_hits", 0),
+            "cache_misses": getattr(source, "cache_misses", 0),
+        }
+
+    @staticmethod
+    def _discovery_provider_metrics(discovery: object) -> dict[str, object]:
+        router = getattr(discovery, "router", None)
+
+        if router is not None:
+            provider = getattr(router, "primary", None)
+        else:
+            providers = getattr(discovery, "providers", [])
+            provider = providers[0] if providers else None
+
+        if provider is None:
+            return {
+                "provider": None,
+                "provider_config": {},
+            }
+
+        provider_type = type(provider)
+        known_identities = {
+            "BraveSearchProvider": "brave",
+            "SearXNGProvider": "searxng",
+        }
+        provider_identity = known_identities.get(
+            provider_type.__name__,
+            f"{provider_type.__module__}.{provider_type.__qualname__}",
+        )
+
+        provider_name = provider_type.__name__
+        if provider_name == "BraveSearchProvider":
+            provider_config = {
+                "country": str(getattr(provider, "country", "")),
+                "search_lang": str(getattr(provider, "search_lang", "")),
+            }
+        elif provider_name == "SearXNGProvider":
+            provider_config = {
+                "base_url": str(getattr(provider, "base_url", "")),
+            }
+        else:
+            provider_config = {}
+
+        return {
+            "provider": provider_identity,
+            "provider_config": provider_config,
+        }
+
+    @staticmethod
+    def _fetch_failure_category(failure: FetchFailure) -> str:
+        error = failure.error.lower()
+
+        if error == "request timeout":
+            return "timeout"
+        if error == "blocked by robots.txt":
+            return "policy"
+        if error == "per-domain request limit reached":
+            return "request-limit"
+        if "http 401" in error:
+            return "auth"
+        if "http 403" in error:
+            return "access-blocked"
+        if "http 429" in error:
+            return "rate-limit"
+        if error.startswith("http 5"):
+            return "server-error"
+
+        return "invalid-response"
 
     def _fetch_candidate(
         self,
@@ -126,7 +229,11 @@ class ScraperEngine:
                 semaphore.release()
 
     def run(self, request: SearchRequest) -> ScrapeResult:
+        run_started = datetime.now(timezone.utc)
+        run_id = str(uuid4())
         existing_leads: list[Lead] = []
+
+        discovery_metrics_before = self._discovery_cache_metrics(self.discovery)
 
         if self.repository is not None:
             existing_leads = self.repository.search(
@@ -241,7 +348,7 @@ class ScraperEngine:
             for lead in leads:
                 self.repository.save(lead)
 
-        return ScrapeResult(
+        result = ScrapeResult(
             leads=leads,
             discovered=discovered,
             fetched=fetched,
@@ -252,6 +359,53 @@ class ScraperEngine:
             quality_accepted_count=quality_accepted_count,
             quality_rejected_count=quality_rejected_count,
         )
+
+        if self.run_metrics_repository is not None:
+            run_finished = datetime.now(timezone.utc)
+            acquisition_metrics = self._acquisition_metrics(self.acquisition)
+            discovery_metrics_after = self._discovery_cache_metrics(self.discovery)
+            discovery_metrics = {
+                name: discovery_metrics_after[name] - discovery_metrics_before[name]
+                for name in discovery_metrics_after
+            }
+            provider_metrics = self._discovery_provider_metrics(self.discovery)
+            self.run_metrics_repository.save(
+                RunMetrics(
+                    run_id=run_id,
+                    started_at=run_started.isoformat(),
+                    finished_at=run_finished.isoformat(),
+                    duration_ms=(run_finished - run_started).total_seconds() * 1000,
+                    discovered_count=len(discovered),
+                    candidate_count=len(candidates),
+                    fetched_count=len(fetched),
+                    fetch_failure_count=len(fetch_failures),
+                    parse_failure_count=len(parse_failures),
+                    failure_categories=dict(
+                        Counter(
+                            self._fetch_failure_category(failure)
+                            for failure in fetch_failures
+                        )
+                    ),
+                    lead_count=result.count,
+                    existing_lead_count=len(existing_leads),
+                    quality_checked_count=quality_checked_count,
+                    quality_accepted_count=quality_accepted_count,
+                    quality_rejected_count=quality_rejected_count,
+                    browser_fallback_count=acquisition_metrics["browser_fallback_count"],
+                    provider=provider_metrics["provider"],
+                    provider_config=provider_metrics["provider_config"],
+                    cache_hits=(
+                        acquisition_metrics["cache_hits"]
+                        + discovery_metrics["cache_hits"]
+                    ),
+                    cache_misses=(
+                        acquisition_metrics["cache_misses"]
+                        + discovery_metrics["cache_misses"]
+                    ),
+                )
+            )
+
+        return result
 
 
 def scrape(

@@ -232,26 +232,26 @@ This tracker is the locked v1.0.2 implementation scope. Competitor features from
 
 ## PHASE 13 — Anti-Blocking / Operational Resilience
 
-- [ ] Build failure taxonomy first
-- [ ] Detect 403 / 429 / CAPTCHA / bot-block / challenge pages
-- [ ] Tune retries and throttling from observed evidence
-- [ ] Evaluate browser fallback before proxy infrastructure
-- [ ] Evaluate external provider fallback before owning proxy infrastructure
-- [ ] Residential proxy support remains conditional
-- [ ] Do not build an in-house CAPTCHA-solving system
-- [ ] Do not build residential proxy infrastructure in v1.0.2
+- [x] Build failure taxonomy first
+- [x] Detect 403 / 429 / CAPTCHA / bot-block / challenge pages
+- [x] Tune retries and throttling from observed evidence
+- [x] Evaluate browser fallback before proxy infrastructure
+- [x] Evaluate external provider fallback before owning proxy infrastructure
+- [x] Residential proxy support remains conditional
+- [x] Do not build an in-house CAPTCHA-solving system
+- [x] Do not build residential proxy infrastructure in v1.0.2
 
 ## PHASE 14 — Observability & Run Metrics
 
-- [ ] Design DuckDB run_metrics table
-- [ ] Store run timing metrics
-- [ ] Store discovery/fetch/parse/lead counts
-- [ ] Store failure categories
-- [ ] Store browser/external fallback counts
-- [ ] Store cache hit/miss counts
-- [ ] Store provider information
-- [ ] Enable historical performance comparison
-- [ ] Keep monitoring lightweight and local-first
+- [x] Design DuckDB run_metrics table
+- [x] Store run timing metrics
+- [x] Store discovery/fetch/parse/lead counts
+- [x] Store failure categories
+- [x] Store browser/external fallback counts
+- [x] Store cache hit/miss counts
+- [x] Store provider information
+- [x] Enable historical performance comparison
+- [x] Keep monitoring lightweight and local-first
 
 ## PHASE 15 — Batch Processing
 

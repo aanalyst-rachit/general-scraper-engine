@@ -121,13 +121,15 @@ def test_auto_fetcher_falls_back_for_js_shell():
             )
 
     browser = Browser()
-    result = AutoFetcher(
+    fetcher = AutoFetcher(
         http_fetcher=HTTP(),
         browser_fetcher=browser,
-    ).fetch(FetchRequest(url))
+    )
+    result = fetcher.fetch(FetchRequest(url))
 
     assert result.html == "<html><body><p>Rendered browser content.</p></body></html>"
     assert browser.calls == [url]
+    assert fetcher.browser_fallback_count == 1
 
 
 def test_auto_fetcher_does_not_fallback_http_errors():
@@ -194,6 +196,38 @@ def test_auto_fetcher_does_not_fallback_block_pages():
     assert "Access Denied" in result.html
 
 
+def test_auto_fetcher_does_not_fallback_http_401_403_429():
+    from scraper.acquisition import AutoFetcher
+
+    for status_code in (401, 403, 429):
+        url = f"https://example.com/status-{status_code}"
+
+        class HTTP:
+            def fetch(self, requested_url):
+                return FetchedPage(
+                    url=requested_url,
+                    final_url=requested_url,
+                    status_code=status_code,
+                    content_type="text/html",
+                    error=f"HTTP {status_code}",
+                )
+
+        class Browser:
+            def fetch(self, request):
+                raise AssertionError(
+                    f"browser fallback must not run for HTTP {status_code}"
+                )
+
+        result = AutoFetcher(
+            http_fetcher=HTTP(),
+            browser_fetcher=Browser(),
+        ).fetch(FetchRequest(url))
+
+        assert result.status_code == status_code
+        assert result.error == f"HTTP {status_code}"
+
+
+
 def test_cached_fetcher_caches_successful_acquisition(tmp_path):
     from scraper.acquisition import CachedFetcher
     from scraper.cache.fetch import FetchCache
@@ -223,6 +257,8 @@ def test_cached_fetcher_caches_successful_acquisition(tmp_path):
         assert first.html == "<html><body>cached</body></html>"
         assert second.html == first.html
         assert acquisition.calls == ["https://example.com/page"]
+        assert fetcher.cache_hits == 1
+        assert fetcher.cache_misses == 1
 
 
 def test_cached_fetcher_does_not_cache_failed_page(tmp_path):
@@ -253,6 +289,8 @@ def test_cached_fetcher_does_not_cache_failed_page(tmp_path):
         assert first.status_code == 500
         assert second.status_code == 500
         assert acquisition.calls == 2
+        assert fetcher.cache_hits == 0
+        assert fetcher.cache_misses == 2
 
 
 def test_cached_fetcher_does_not_cache_empty_page(tmp_path):
@@ -282,6 +320,8 @@ def test_cached_fetcher_does_not_cache_empty_page(tmp_path):
         fetcher.fetch(FetchRequest("https://example.com/empty"))
 
         assert acquisition.calls == 2
+        assert fetcher.cache_hits == 0
+        assert fetcher.cache_misses == 2
 
 
 def test_cached_fetcher_separates_acquisition_strategies(tmp_path):

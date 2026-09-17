@@ -1,5 +1,6 @@
 from scraper.discovery import DiscoveredPage, SearchRequest
-from scraper.engine import ScraperEngine
+from scraper.engine import FetchFailure, ScraperEngine
+from scraper.database.run_metrics import RunMetricsRepository
 from scraper.models import Lead
 from scraper.fetcher import FetchedPage
 from scraper.normalizer import LeadNormalizer
@@ -105,6 +106,16 @@ class FakeFetcher:
     def fetch(self, url):
         return self.pages[url]
 
+
+class MetricsFakeProvider:
+    def search(self, query, limit=20):
+        return [
+            DiscoveredPage(
+                url="https://example.com/raj-1",
+                title="Dr Raj Kumar",
+                source_name="Directory A",
+            )
+        ][:limit]
 
 def test_engine_integration():
     engine = ScraperEngine(
@@ -272,9 +283,14 @@ def test_engine_reports_quality_measurement_separately_from_fetches():
                 return Lead(
                     name="Valid Lead",
                     phone="9876543210",
+                    location="Shahjahanpur",
                     source_url=page.url,
                 )
-            return Lead(name="Invalid Lead")
+            return Lead(
+                    name="",
+                    location="Shahjahanpur",
+                    source_url=page.url,
+                )
 
     engine = ScraperEngine(
         discovery=QualityDiscovery(),
@@ -283,7 +299,7 @@ def test_engine_reports_quality_measurement_separately_from_fetches():
         normalizer=LeadNormalizer(),
     )
 
-    result = engine.run(SearchRequest(keyword="doctor"))
+    result = engine.run(SearchRequest(keyword="doctor", location="Shahjahanpur"))
 
     assert len(result.fetched) == 2
     assert result.quality_checked_count == 2
@@ -1234,3 +1250,155 @@ def test_engine_uses_fetch_cache_for_repeated_url(tmp_path):
     assert first.count == 1
     assert second.count == 1
     assert fetcher.calls == [url]
+
+
+def test_engine_classifies_fetch_failure_categories():
+    cases = {
+        "request timeout": "timeout",
+        "blocked by robots.txt": "policy",
+        "per-domain request limit reached": "request-limit",
+        "HTTP 401": "auth",
+        "HTTP 403": "access-blocked",
+        "HTTP 429": "rate-limit",
+        "HTTP 500": "server-error",
+        "HTTP error: connection reset": "invalid-response",
+        "fetch error: connection exploded": "invalid-response",
+    }
+
+    for error, expected in cases.items():
+        failure = FetchFailure(
+            url="https://example.com/test",
+            error=error,
+        )
+        assert ScraperEngine._fetch_failure_category(failure) == expected
+
+
+def test_engine_persists_fetch_failure_categories(tmp_path):
+    metrics_repository = RunMetricsRepository(tmp_path / "metrics.duckdb")
+
+    engine = ScraperEngine(
+        discovery=FakeDiscovery(),
+        fetcher=FakeFetcher(),
+        parser=FilterParser(),
+        normalizer=LeadNormalizer(),
+        run_metrics_repository=metrics_repository,
+    )
+
+    result = engine.run(SearchRequest(keyword="doctor", location="Shahjahanpur"))
+
+    metrics = metrics_repository.all()
+
+    assert len(metrics) == 1
+    assert len(result.fetch_failures) == 1
+    assert metrics[0].failure_categories == {"server-error": 1}
+
+
+def test_engine_persists_discovery_provider_metadata(tmp_path):
+    from scraper.discovery import WebDiscovery
+    metrics_repository = RunMetricsRepository(tmp_path / "metrics.duckdb")
+    provider = MetricsFakeProvider()
+    discovery = WebDiscovery(primary_provider=provider)
+
+    engine = ScraperEngine(
+        discovery=discovery,
+        fetcher=FakeFetcher(),
+        parser=FilterParser(),
+        normalizer=LeadNormalizer(),
+        run_metrics_repository=metrics_repository,
+    )
+
+    engine.run(SearchRequest(keyword="doctor", location="Shahjahanpur"))
+
+    stored = metrics_repository.all()
+    assert len(stored) == 1
+    assert stored[0].provider == "test_engine.MetricsFakeProvider"
+    assert stored[0].provider_config == {}
+
+def test_engine_persists_discovery_cache_metrics(tmp_path):
+    from scraper.cache.discovery import DiscoveryCache
+    from scraper.discovery import WebDiscovery
+
+    metrics_repository = RunMetricsRepository(tmp_path / "metrics.duckdb")
+    discovery = WebDiscovery(
+        providers=[MetricsFakeProvider()],
+        cache=DiscoveryCache(tmp_path / "discovery.duckdb"),
+    )
+
+    engine = ScraperEngine(
+        discovery=discovery,
+        fetcher=FakeFetcher(),
+        parser=FilterParser(),
+        normalizer=LeadNormalizer(),
+        run_metrics_repository=metrics_repository,
+    )
+
+    request = SearchRequest(keyword="doctor", location="Shahjahanpur")
+
+    engine.run(request)
+    engine.run(request)
+
+    metrics = metrics_repository.all()
+
+    assert len(metrics) == 2
+    assert metrics[0].cache_hits == 0
+    assert metrics[0].cache_misses == 6
+    assert metrics[1].cache_hits == 6
+    assert metrics[1].cache_misses == 0
+
+def test_engine_persists_run_metrics(tmp_path):
+    metrics_repository = RunMetricsRepository(tmp_path / "metrics.duckdb")
+
+    engine = ScraperEngine(
+        discovery=FakeDiscovery(),
+        fetcher=FakeFetcher(),
+        parser=FilterParser(),
+        normalizer=LeadNormalizer(),
+        run_metrics_repository=metrics_repository,
+    )
+
+    engine.acquisition.cache_hits = 7
+    engine.acquisition.cache_misses = 4
+    engine.acquisition.browser_fallback_count = 3
+
+    result = engine.run(SearchRequest(keyword="doctor", location="Shahjahanpur"))
+
+    metrics = metrics_repository.all()
+
+    assert len(metrics) == 1
+    stored = metrics[0]
+    assert stored.run_id
+    assert stored.started_at
+    assert stored.finished_at
+    assert stored.duration_ms is not None
+    assert stored.duration_ms >= 0
+    assert stored.discovered_count == len(result.discovered)
+    assert stored.candidate_count == len(result.discovered)
+    assert stored.fetched_count == len(result.fetched)
+    assert stored.fetch_failure_count == len(result.fetch_failures)
+    assert stored.parse_failure_count == len(result.parse_failures)
+    assert stored.lead_count == result.count
+    assert stored.existing_lead_count == len(result.existing_leads)
+    assert stored.quality_checked_count == result.quality_checked_count
+    assert stored.quality_accepted_count == result.quality_accepted_count
+    assert stored.quality_rejected_count == result.quality_rejected_count
+    assert stored.browser_fallback_count == 3
+    assert stored.cache_hits == 7
+    assert stored.cache_misses == 4
+
+
+def test_engine_collects_nested_acquisition_metrics():
+    class Inner:
+        browser_fallback_count = 3
+
+    class Outer:
+        cache_hits = 7
+        cache_misses = 4
+        acquisition = Inner()
+
+    metrics = ScraperEngine._acquisition_metrics(Outer())
+
+    assert metrics == {
+        "browser_fallback_count": 3,
+        "cache_hits": 7,
+        "cache_misses": 4,
+    }

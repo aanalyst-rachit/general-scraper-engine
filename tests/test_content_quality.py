@@ -144,3 +144,24 @@ def test_inline_script_does_not_make_normal_thin_page_js_shell():
 
     assert result.category is ContentQuality.THIN_CONTENT
     assert result.needs_browser_fallback
+
+
+def test_http_403_is_access_blocked():
+    result = classifier.classify(page("<html><body>Access denied</body></html>", status_code=403))
+
+    assert result.category is ContentQuality.ACCESS_BLOCKED
+    assert not result.needs_browser_fallback
+
+
+def test_http_429_is_rate_limited():
+    result = classifier.classify(page("<html><body>Too many requests</body></html>", status_code=429))
+
+    assert result.category is ContentQuality.RATE_LIMITED
+    assert not result.needs_browser_fallback
+
+
+def test_http_401_is_auth_required():
+    result = classifier.classify(page("<html><body>Authentication required</body></html>", status_code=401))
+
+    assert result.category is ContentQuality.AUTH_REQUIRED
+    assert not result.needs_browser_fallback

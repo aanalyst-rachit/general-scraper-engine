@@ -86,6 +86,8 @@ class CachedFetcher:
         self.acquisition = acquisition
         self.cache = cache
         self.acquisition_strategy = acquisition_strategy
+        self.cache_hits = 0
+        self.cache_misses = 0
 
     def fetch(self, request: FetchRequest) -> FetchedPage:
         cached = self.cache.get(
@@ -93,8 +95,10 @@ class CachedFetcher:
             acquisition_strategy=self.acquisition_strategy,
         )
         if cached is not None:
+            self.cache_hits += 1
             return cached.to_fetched_page()
 
+        self.cache_misses += 1
         page = self.acquisition.fetch(request)
 
         if page.ok:
@@ -123,12 +127,14 @@ class AutoFetcher:
             browser_fetcher = BrowserFetcher()
         self.browser = browser_fetcher
         self.content_quality = content_quality or ContentQualityClassifier()
+        self.browser_fallback_count = 0
 
     def fetch(self, request: FetchRequest) -> FetchedPage:
         page = self.http.fetch(request)
         quality = self.content_quality.classify(page)
 
         if quality.needs_browser_fallback:
+            self.browser_fallback_count += 1
             return self.browser.fetch(request)
 
         return page
