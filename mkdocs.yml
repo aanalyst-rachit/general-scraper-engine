@@ -1,33 +1,111 @@
 site_name: General Scraper Engine
-site_description: General-purpose public-web lead scraper engine
+site_description: A modular, policy-aware public-web lead acquisition and extraction engine.
 site_url: https://aanalyst-rachit.github.io/general-scraper-engine/
 repo_url: https://github.com/aanalyst-rachit/general-scraper-engine
 repo_name: aanalyst-rachit/general-scraper-engine
+edit_uri: edit/main/docs/
 copyright: Copyright © 2026 Rachit
 
 theme:
-  name: mkdocs
-  navigation_depth: 3
+  name: material
+  language: en
+
+  features:
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.tracking
+    - navigation.sections
+    - navigation.expand
+    - navigation.path
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - search.share
+    - content.code.copy
+    - content.code.annotate
+    - content.action.edit
+    - toc.follow
+
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to dark mode
+
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/weather-night
+        name: Switch to light mode
+
+  font:
+    text: Inter
+    code: JetBrains Mono
+
+  favicon: assets/favicon.svg
+  logo: material/web
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/aanalyst-rachit/general-scraper-engine
+      name: GitHub
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/general-scraper-engine/
+      name: PyPI
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.tasklist
+  - toc:
+      permalink: true
+
+extra_css:
+  - stylesheets/extra.css
 
 nav:
   - Home: index.md
+
   - Getting Started:
       - Installation: getting-started/installation.md
       - Quick Start: getting-started/quickstart.md
+
   - Guides:
       - CLI Usage: guides/cli.md
       - Output Formats: guides/output.md
       - Discovery Providers: guides/providers.md
       - Public-Web & Robots Policy: guides/policy.md
       - Examples: guides/examples.md
+
   - Reference:
       - Architecture: reference/architecture.md
       - Lead Schema: reference/lead-schema.md
       - Programmatic API: reference/api.md
       - Error Handling: reference/errors.md
+
   - Project:
       - Testing: testing.md
       - Limitations: limitations.md
       - Contributing: contributing.md
-      - Release Notes: release/v_1.0.1/RELEASE_NOTES.md
+
+  - Releases:
+      - v1.0.2 Release Notes: release/v_1.0.2/RELEASE_NOTES.md
+      - v1.0.2 Tracker: release/v_1.0.2/tracker.md
+      - v1.0.1 Release Notes: release/v_1.0.1/RELEASE_NOTES.md
       - v1.0.1 Tracker: release/v_1.0.1/tracker.md
