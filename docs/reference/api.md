@@ -72,6 +72,7 @@ result = scrape(request, discovery)
 - `FetchedPage` — represents acquired HTML and its response metadata or failure.
 - `Lead` — normalized lead data including identity, contact, location, business context, and source information.
 - `ScrapeResult` — contains accepted leads together with discovery, acquisition, quality, provider, cache, and failure measurements.
+
 ## Discovery API
 
 - `DiscoveryProvider` — provider protocol for web discovery implementations.
@@ -81,6 +82,40 @@ result = scrape(request, discovery)
 - `DiscoveryCache` — optional provider-result cache with configurable freshness policies.
 
 Discovery cache policies currently include `general` (24 hours), `high_change` (1 hour), and `stable_directory` (7 days).
+
+## Source Adapter API
+
+Source adapters provide source-specific acquisition and return normalized `Lead` records directly.
+
+- `SourceAdapter` — protocol for source-specific lead acquisition.
+- `SourceAdapterRegistry` — registry for source adapter implementations.
+- `GoogleMapsAdapter` — Google Maps Places API source adapter.
+- `GoogleMapsBrowserAdapter` — Google Maps browser source adapter using Playwright.
+- `JustdialBrowserAdapter` — Justdial browser source adapter using Playwright.
+
+Direct-source adapters accept a `SearchRequest` and return a list of `Lead` records. The CLI exposes them through the `--source` option.
+
+Example:
+
+```python
+from scraper.discovery import SearchRequest
+from scraper.source_google_maps_browser import GoogleMapsBrowserAdapter
+
+request = SearchRequest(
+    keyword="restaurant",
+    location="Shahjahanpur, Uttar Pradesh",
+    limit=5,
+)
+
+adapter = GoogleMapsBrowserAdapter(
+    browser_factory,
+    timeout=15.0,
+    wait_for_timeout=1,
+)
+leads = adapter.search(request)
+```
+
+Direct-source callers are responsible for supplying the required browser factory or API configuration for the selected adapter.
 
 ## Acquisition API
 
@@ -103,6 +138,7 @@ Current external acquisition providers are `FirecrawlProvider`, `ScrapeDoProvide
 - `ExtractionStrategy` — contract for extraction implementations.
 - `ParserRegistry` — resolves source-specific parsers before generic fallback.
 - `ExtractionRegistry` — manages extraction strategies.
+
 ## Relevance and Quality API
 
 - `KeywordRelevance` — keyword matching.
@@ -128,6 +164,7 @@ Content-quality categories include `valid_content`, `empty_content`, `thin_conte
 - `BoundedExecutor.map_isolated()` — preserves input order while isolating individual batch failures.
 
 `SiteCrawler` defaults to `max_pages=10` and `max_depth=1`.
+
 ## Caching
 
 `FetchCache` provides persistent fetch-result caching. The default fetch-cache policies are `general` (24 hours), `high_change` (1 hour), and `stable` (7 days).
@@ -147,8 +184,10 @@ Persistence is optional. A caller can run the scraper entirely in memory and con
 
 The same engine is available through the `general-scraper` console command and the existing `run_scraper.py` entry point. The CLI is a convenience layer over the programmatic pipeline rather than a separate scraping implementation.
 
+The CLI also exposes direct-source adapters through `--source`: `google-maps`, `google-maps-browser`, and `justdial-browser`.
+
 ## Public API Stability
 
 The project intentionally documents explicit module-level imports as the public programmatic interface. No uppercase or package-level compatibility aliases are required by the current API contract.
 
-When replacing a component, prefer the existing protocol or adapter boundary (`DiscoveryProvider`, `AcquisitionStrategy`, `ExternalFetcher`, `ExtractionStrategy`, repository interfaces, and related contracts) instead of coupling new code directly to the engine internals.
+When replacing a component, prefer the existing protocol or adapter boundary (`DiscoveryProvider`, `SourceAdapter`, `AcquisitionStrategy`, `ExternalFetcher`, `ExtractionStrategy`, repository interfaces, and related contracts) instead of coupling new code directly to the engine internals.

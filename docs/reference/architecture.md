@@ -10,54 +10,64 @@ CLI / Programmatic API
         v
 SearchRequest
         |
-        v
-WebDiscovery
-        |
-        +--> BraveSearchProvider
-        +--> SearXNGProvider
-        |
-        v
-Discovery Cache
-        |
-        v
-DiscoveredPage
-        |
-        v
-Relevance Filters
-        |
-        v
-Acquisition
-        |
-        +--> HTTPFetcherAdapter -> PageFetcher
-        |
-        +--> AutoFetcher -> HTTP -> ContentQuality -> Browser
-        |
-        +--> External Provider
-        |       +--> Firecrawl
-        |       +--> Scrape.do
-        |       +--> Scrapingdog
-        v
-FetchedPage
-        |
-        v
-ParserRegistry / PageParser
-        |
-        +--> Structured data / generic extraction
-        +--> Source-specific parser
-        |
-        v
-Lead
-        |
-        +--> Location validation
-        +--> Lead quality
-        |
-        v
-Normalize / Deduplicate / Merge
-        |
-        +--> Terminal
-        +--> JSON / CSV
-        +--> Optional DuckDB
-        +--> Optional Run Metrics
+        +------------------------------+
+        |                              |
+        v                              v
+WebDiscovery                    Direct Source Adapter
+        |                              |
+        +--> BraveSearchProvider       +--> GoogleMapsAdapter
+        +--> SearXNGProvider           +--> GoogleMapsBrowserAdapter
+        |                              +--> JustdialBrowserAdapter
+        v                              |
+Discovery Cache                        |
+        |                              |
+        v                              |
+DiscoveredPage                         |
+        |                              |
+        v                              v
+Relevance Filters                 Lead-level safeguards
+        |                              |
+        v                              |
+Acquisition                           |
+        |                              |
+        +--> HTTPFetcherAdapter        |
+        |       -> PageFetcher         |
+        |                              |
+        +--> AutoFetcher               |
+        |       -> HTTP                |
+        |       -> ContentQuality      |
+        |       -> Browser             |
+        |                              |
+        +--> External Provider         |
+                +--> Firecrawl         |
+                +--> Scrape.do         |
+                +--> Scrapingdog       |
+        |                              |
+        v                              |
+FetchedPage                           |
+        |                              |
+        v                              |
+ParserRegistry / PageParser            |
+        |                              |
+        +--> Structured data           |
+        +--> Generic extraction       |
+        +--> Source-specific parser   |
+        |                              |
+        +--------------+---------------+
+                       |
+                       v
+                      Lead
+                       |
+                       +--> Location validation
+                       +--> Lead quality
+                       |
+                       v
+              Normalize / Deduplicate
+                       |
+                       +--> Terminal
+                       +--> JSON / CSV
+                       +--> Optional DuckDB
+                       +--> Optional Run Metrics
 ```
 
 ## Discovery
@@ -67,6 +77,16 @@ Normalize / Deduplicate / Merge
 Built-in discovery providers are `BraveSearchProvider` and `SearXNGProvider`. The `DiscoveryProvider` protocol allows additional providers without changing the core discovery pipeline.
 
 Discovery results are represented by `DiscoveredPage`.
+
+## Direct Source Adapters
+
+Direct source adapters provide source-specific acquisition and return normalized `Lead` records without going through the generic discovery and page-acquisition stages.
+
+Current adapters are `GoogleMapsAdapter`, `GoogleMapsBrowserAdapter`, and `JustdialBrowserAdapter`.
+
+Direct-source results pass through Lead-level location validation, quality validation, normalization, deduplication, and optional persistence before being returned by the CLI.
+
+The CLI selects these adapters through `--source`.
 
 ## Discovery Caching
 

@@ -10,6 +10,12 @@ Fetch failures may originate from HTTP acquisition, robots policy, request limit
 
 Parse failures are recorded when a parser raises an exception or returns no lead for an otherwise successfully fetched page.
 
+## Direct Source Errors
+
+Direct-source adapters such as Google Maps and Justdial acquire and normalize `Lead` records without going through the generic discovered-page fetch and parse stages.
+
+Errors raised while acquiring direct-source results are therefore handled by the selected source adapter path rather than being represented as generic page fetch or parse failures.
+
 ## Fetch Failure Categories
 
 `ScrapeResult.fetch_failures` contains `FetchFailure` records with the affected URL and the original fetch error.

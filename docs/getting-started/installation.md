@@ -27,3 +27,16 @@ pip install .
 ```
 
 This installs the `general-scraper` CLI entry point.
+
+## Optional Browser Sources
+
+Google Maps Browser and Justdial Browser source adapters use Playwright.
+
+Install the browser dependency and Chromium with:
+
+```bash
+pip install playwright
+playwright install chromium
+```
+
+The Google Maps Places API source adapter requires a Google Maps API key. It can be supplied through `--google-maps-api-key` or the `GOOGLE_MAPS_API_KEY` environment variable.

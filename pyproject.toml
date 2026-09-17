@@ -4,17 +4,26 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "general-scraper-engine"
-version = "1.0.2"
+version = "1.0.3"
 description = "General-purpose public-web lead scraper engine"
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
+authors = [
+    {name = "Rachit Kr. Kanaujia", email = "kanaujia.rachit1991@gmail.com"}
+]
+
 dependencies = [
     "httpx>=0.28,<0.29",
     "beautifulsoup4>=4.15,<4.16",
     "lxml>=6.1,<6.2",
     "duckdb>=1.5,<1.6",
 ]
+
+[project.urls]
+Homepage = "https://aanalyst-rachit.github.io/general-scraper-engine/"
+Repository = "https://github.com/aanalyst-rachit/general-scraper-engine"
+Documentation = "https://aanalyst-rachit.github.io/general-scraper-engine/"
 
 [project.scripts]
 general-scraper = "run_scraper:main"

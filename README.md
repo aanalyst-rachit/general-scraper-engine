@@ -670,13 +670,33 @@ Browser fallback is not intended to replace HTTP acquisition globally.
 
 ## Source Adapters
 
-Source-specific adapters via `SourceAdapter` and `SourceAdapterRegistry`.
+Source-specific adapters are available through `SourceAdapter` and `SourceAdapterRegistry`.
 
 Current implementations:
 
 - Google Maps HTTP adapter
 - Google Maps browser adapter
 - Justdial browser adapter
+
+The CLI also exposes direct-source execution for specialized adapters:
+
+- `google-maps` — Google Maps Places API
+- `google-maps-browser` — Google Maps browser acquisition
+- `justdial-browser` — Justdial browser acquisition
+
+Example:
+
+```bash
+python run_scraper.py \
+  --source google-maps-browser \
+  --keyword "restaurant" \
+  --location "Shahjahanpur, Uttar Pradesh" \
+  --limit 5
+```
+
+Direct-source results use the common `Lead` model and can be written to JSON, CSV, or DuckDB using the existing output and persistence options.
+
+The `--category` option can filter direct-source results by the normalized Lead category.
 
 Additional specialized adapters should demonstrate measurable value before inclusion.
 

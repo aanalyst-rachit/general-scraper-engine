@@ -78,12 +78,20 @@ def check_git() -> None:
         capture=True,
     ).stdout.splitlines()
 
-    if status:
-        print("\nWorking-tree changes detected and will be included in the release commit:")
-        for line in status:
+    unexpected = [
+        line for line in status
+        if line[3:] not in {"tracker.md", "release.py", ".gitignore", "pyproject.toml"}
+    ]
+
+    if unexpected:
+        print("\nUnexpected working-tree changes:")
+        for line in unexpected:
             print("  " + line)
-    else:
-        print("\nINFO: Working tree is clean before release commit.")
+        fail("Only tracker.md, release.py, .gitignore, and pyproject.toml may be locally modified.")
+
+    if status:
+        print("\nINFO: tracker.md is modified and will remain untouched.")
+
 
 def pypi_exists(name: str, version: str) -> bool:
     url = PYPI_URL.format(name=name, version=version)

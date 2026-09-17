@@ -47,9 +47,13 @@ The main `Lead` model contains these field groups.
 - `source_id`
 - `search_context`
 
+Direct-source adapters such as Google Maps and Justdial populate the same source and identity fields in the common `Lead` model.
+
 ## Flexible Data
 
 - `extra`
 - `raw_data`
+
+The `category` field represents the normalized business category and can be used by the CLI for exact category filtering.
 
 Serialize a lead with `Lead.to_dict()`.

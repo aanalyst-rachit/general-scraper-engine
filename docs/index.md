@@ -33,7 +33,7 @@ Install directly with pip and integrate the engine into your Python workflows.
 
 ### Current Release
 
-Version **1.0.2** with release notes available in the documentation.
+Version **1.0.3** with release notes available in the documentation.
 
 </div>
 
@@ -181,7 +181,7 @@ See the complete setup in the **[Quick Start](getting-started/quickstart.md)** g
 | Area | Capabilities |
 |---|---|
 | Discovery | Brave Search, SearXNG, provider protocol, caching |
-| Acquisition | HTTP, Playwright browser, external providers |
+| Acquisition | HTTP, Playwright browser, external providers, Google Maps, Justdial |
 | Crawling | Same-site crawling, depth/page limits, domain controls |
 | Extraction | JSON-LD, Schema.org, metadata, contacts, addresses |
 | Relevance | Keyword, location, category, requirements |
@@ -255,7 +255,7 @@ See **[Public-Web and Robots Policy](guides/policy.md)** for details.
 - [Testing](testing.md)
 - [Limitations](limitations.md)
 - [Contributing](contributing.md)
-- [v1.0.2 Release Notes](release/v_1.0.2/RELEASE_NOTES.md)
+- [v1.0.3 Release Notes](release/v_1.0.3/RELEASE_NOTES.md)
 
 ---
 

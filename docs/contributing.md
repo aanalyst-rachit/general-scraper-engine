@@ -9,3 +9,7 @@ Before submitting changes:
 3. Keep changes focused and document user-visible behavior.
 
 See the repository documentation and project history for the current implementation and release records.
+
+## Testing Changes
+
+Add or update tests when changing CLI behavior, source adapters, acquisition, parsing, or persistence.

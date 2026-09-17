@@ -105,6 +105,8 @@ nav:
       - Contributing: contributing.md
 
   - Releases:
+      - v1.0.3 Release Notes: release/v_1.0.3/RELEASE_NOTES.md
+      - v1.0.3 Tracker: release/v_1.0.3/tracker.md
       - v1.0.2 Release Notes: release/v_1.0.2/RELEASE_NOTES.md
       - v1.0.2 Tracker: release/v_1.0.2/tracker.md
       - v1.0.1 Release Notes: release/v_1.0.1/RELEASE_NOTES.md

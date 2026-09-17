@@ -80,16 +80,16 @@ Upgrade the engine into a pluggable web acquisition system with smart HTTP/brows
 
 ## Release Audit Checklist
 
-- [ ] Final tracker review
-- [ ] Final test verification
-- [ ] Final compile verification
-- [ ] Benchmark evidence review
-- [ ] Documentation review
-- [ ] Version metadata updated to `1.0.2`
-- [ ] Git commit created
-- [ ] Git tag `v1.0.2` created
-- [ ] Package published and verified
-- [ ] GitHub release published
+- [x] Final tracker review
+- [x] Final test verification
+- [x] Final compile verification
+- [x] Benchmark evidence review
+- [x] Documentation review
+- [x] Version metadata updated to `1.0.2`
+- [x] Git commit created
+- [x] Git tag `v1.0.2` created
+- [x] Package published and verified
+- [x] GitHub release published
 
 ## Deferred to v1.0.3+
 

@@ -15,6 +15,18 @@ Results depend on:
 
 Not every website exposes structured business information. Some pages also require JavaScript rendering or browser interaction that a plain HTTP request cannot provide.
 
+## Direct Source Limitations
+
+The CLI supports specialized direct-source adapters for Google Maps and Justdial.
+
+- `GoogleMapsAdapter` uses the Google Maps Places API and requires an API key.
+- `GoogleMapsBrowserAdapter` uses Playwright browser acquisition.
+- `JustdialBrowserAdapter` uses Playwright browser acquisition.
+
+Direct-source adapters return normalized `Lead` records directly rather than using the generic discovery and page-parsing pipeline.
+
+Source availability and extracted fields depend on what the selected public source exposes. Missing source fields are not fabricated.
+
 ## Browser Requirements
 
 `BrowserFetcher` provides optional Playwright-based browser acquisition. The core package does not install Playwright automatically.

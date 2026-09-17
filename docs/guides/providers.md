@@ -33,13 +33,36 @@ The provider requests at most 20 results from the Brave API per search call and 
 The default base URL is `http://127.0.0.1:8080`.
 
 ```bash
-python run_scraper.py \\
-  --provider searxng \\
-  --searxng-url "http://127.0.0.1:8080" \\
+python run_scraper.py \
+  --provider searxng \
+  --searxng-url "http://127.0.0.1:8080" \
   --keyword restaurant
 ```
 
 The provider follows SearXNG result pages until the requested limit is reached or no new results are returned.
+
+## Source Adapters
+
+Source-specific adapters provide direct acquisition from supported public sources and return normalized `Lead` records.
+
+Current direct-source adapters are:
+
+- `GoogleMapsAdapter` — Google Maps Places API
+- `GoogleMapsBrowserAdapter` — Google Maps browser acquisition through Playwright
+- `JustdialBrowserAdapter` — Justdial browser acquisition through Playwright
+
+These adapters are selected through the CLI `--source` option.
+
+```bash
+python run_scraper.py \
+  --source google-maps-browser \
+  --keyword "restaurant" \
+  --location "Shahjahanpur, Uttar Pradesh" \
+  --limit 5
+```
+
+Direct-source results use the common `Lead` model and can be written to JSON, CSV, or DuckDB.
+
 ## External Acquisition Providers
 
 External providers implement the provider-neutral `ExternalFetcher` contract. They acquire page content through third-party scraping services rather than the native HTTP fetcher.
@@ -81,6 +104,7 @@ export SCRAPINGDOG_API_KEY="your-api-key"
 ```
 
 The default client timeout is 60 seconds. `ExternalFetchRequest(render=True)` enables dynamic rendering.
+
 ## Policy-Aware External Acquisition
 
 `PolicyAwareExternalFetcher` wraps an external provider and applies the configured acquisition policy before making the provider request.
@@ -99,6 +123,8 @@ Provider failures are returned through the normal result and failure-measurement
 
 ## Provider Selection
 
-The CLI currently exposes `brave` and `searxng` as discovery-provider choices.
+The CLI exposes `brave` and `searxng` as discovery-provider choices.
+
+The CLI also exposes `google-maps`, `google-maps-browser`, and `justdial-browser` as direct-source choices.
 
 External acquisition providers are available as programmatic components and can be composed with the acquisition layer when a caller needs third-party scraping.
