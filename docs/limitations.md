@@ -13,6 +13,69 @@ Results depend on:
 - rate limits
 - information exposed by each website
 
-Not every website exposes structured business information, and some pages may require JavaScript rendering that the current HTTP/HTML pipeline does not execute.
+Not every website exposes structured business information. Some pages also require JavaScript rendering or browser interaction that a plain HTTP request cannot provide.
 
-The CLI is available both as the installed `general-scraper` command and as `python run_scraper.py` when running directly from the repository.
+## Browser Requirements
+
+`BrowserFetcher` provides optional Playwright-based browser acquisition. The core package does not install Playwright automatically.
+
+Install the optional browser dependency with:
+
+```bash
+pip install playwright
+playwright install chromium
+```
+
+Browser acquisition runs Chromium headlessly and supports optional waiting, selector-based waiting, clicking, and bounded scrolling.
+
+Browser concurrency defaults to 2. Browser acquisition can fail when Playwright or its Chromium browser binary is unavailable.
+
+## Crawl Limits
+
+`SiteCrawler` is intentionally bounded to prevent an unrestricted crawl.
+
+The default limits are:
+
+- maximum pages: 10
+- maximum depth: 1
+- global crawler concurrency: 1
+
+By default, crawling remains on the seed URL domain. Additional domains can be explicitly allowed, and include/exclude URL patterns can further constrain the crawl.
+
+Failed page acquisitions do not terminate the complete crawl. Individual failures are isolated and the crawler continues with other eligible URLs.
+
+## Caching Behavior
+
+Fetch results can be cached in DuckDB through `FetchCache` and `CachedFetcher`. Cache keys include the canonical URL and acquisition strategy.
+
+The default fetch-cache policies are:
+
+| Policy | TTL |
+| --- | --- |
+| `general` | 24 hours |
+| `high_change` | 1 hour |
+| `stable` | 7 days |
+
+Only successful fetched pages are cached by `CachedFetcher`. Expired entries are treated as cache misses and are not returned to the acquisition pipeline.
+
+The default fetch-cache database is `data/fetch_cache.duckdb`.
+
+## External Provider Limitations
+
+External acquisition providers are optional integrations. Their availability, response behavior, quotas, pricing, and service-specific restrictions remain outside the scraper engine.
+
+The current adapters are `FirecrawlProvider`, `ScrapeDoProvider`, and `ScrapingdogProvider`.
+
+These providers are programmatic acquisition components rather than CLI discovery-provider choices.
+
+## Public-Web Boundary
+
+The engine is designed for publicly accessible web content. It does not provide login handling, CAPTCHA solving, private-data access, or mechanisms intended to bypass access controls.
+
+Native HTTP acquisition checks robots policy before requesting pages. Request delays, crawl delays, per-domain request limits, and bounded concurrency can be applied through the acquisition and concurrency layers.
+
+## Compatibility
+
+The existing `general-scraper` CLI and `python run_scraper.py` entry point remain available.
+
+Programmatic callers can use `scraper.engine.scrape()` or construct `ScraperEngine` directly. Existing HTTP-oriented acquisition can continue through the HTTP fetcher adapter while browser and external acquisition remain composable alternatives.

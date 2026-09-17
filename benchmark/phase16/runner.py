@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 import tempfile
 import time
@@ -362,18 +363,42 @@ def benchmark_cache_vs_no_cache() -> dict[str, object]:
 
 
 def main() -> None:
-    benchmarks = [
-        benchmark_static(),
-        benchmark_quality_matrix(),
-        benchmark_repeated_url(),
-        benchmark_large_batch(),
-        benchmark_extraction(),
-        benchmark_location_quality(),
-        benchmark_sequential_vs_concurrent(),
-        benchmark_http_vs_browser(),
-        benchmark_native_vs_external(),
-        benchmark_cache_vs_no_cache(),
-    ]
+    server = subprocess.Popen(
+        [
+            sys.executable,
+            str(ROOT / "benchmark" / "v1_0_2" / "local_server.py"),
+            "--host",
+            "127.0.0.1",
+            "--port",
+            "8766",
+        ],
+        cwd=ROOT,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    try:
+        time.sleep(0.2)
+
+        benchmarks = [
+            benchmark_static(),
+            benchmark_quality_matrix(),
+            benchmark_repeated_url(),
+            benchmark_large_batch(),
+            benchmark_extraction(),
+            benchmark_location_quality(),
+            benchmark_sequential_vs_concurrent(),
+            benchmark_http_vs_browser(),
+            benchmark_native_vs_external(),
+            benchmark_cache_vs_no_cache(),
+        ]
+    finally:
+        server.terminate()
+        try:
+            server.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            server.kill()
+            server.wait()
 
     # The remaining matrix rows are represented by the quality/extraction
     # workloads above and deliberately use deterministic synthetic fixtures.

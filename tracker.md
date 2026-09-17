@@ -279,16 +279,16 @@ This tracker is the locked v1.0.2 implementation scope. Competitor features from
 
 ## PHASE 17 — Documentation & Public API
 
-- [ ] Document acquisition strategies
-- [ ] Document provider configuration
-- [ ] Document browser requirements
-- [ ] Document crawl limits
-- [ ] Document caching behavior
-- [ ] Document external-provider integrations
-- [ ] Document robots/policy behavior
-- [ ] Document failure categories
-- [ ] Document migration/compatibility impact
-- [ ] Keep README and docs aligned with implemented behavior
+- [x] Document acquisition strategies
+- [x] Document provider configuration
+- [x] Document browser requirements
+- [x] Document crawl limits
+- [x] Document caching behavior
+- [x] Document external-provider integrations
+- [x] Document robots/policy behavior
+- [x] Document failure categories
+- [x] Document migration/compatibility impact
+- [x] Keep README and docs aligned with implemented behavior
 
 ## DEFERRED — v1.0.3+
 

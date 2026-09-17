@@ -1,562 +1,780 @@
 # General Scraper Engine
 
-A general-purpose Python web lead scraper for discovering and extracting structured business or professional leads from public web pages.
+A modular, policy-aware web acquisition and lead extraction engine with HTTP-first fetching, browser fallback, optional external acquisition providers, crawling, caching, structured extraction, relevance filtering, quality validation, normalization, deduplication, and DuckDB persistence.
 
-The engine accepts a keyword, optional location, and optional requirements, then runs a pipeline of:
+## Overview
 
-**Discovery → Fetch → Parse → Relevance → Normalize → Quality Check → Deduplicate → Output**
+The engine upgrades a traditional synchronous HTTP lead scraper into a pluggable web acquisition pipeline:
 
-It is designed for public-web research and lead-generation workflows without requiring login or bypassing access controls.
+```text
+Discovery
+    ↓
+Relevance
+    ↓
+Policy
+    ↓
+Acquisition
+    ↓
+Content Quality
+    ↓
+Parse / Extract
+    ↓
+Location / Lead Quality
+    ↓
+Normalize / Deduplicate
+    ↓
+Persistence / Output
+```
+
+HTTP remains the cheapest default acquisition method. Browser and external-provider strategies are introduced only when content or workload requires them.
 
 ## Features
 
-- Keyword-based public-web discovery
-- Optional location targeting
-- Optional requirements matching
-- Replaceable discovery-provider abstraction
-- Brave Search provider
-- SearXNG provider
-- HTTP/HTTPS page fetching
+### Discovery
+
+- Brave Search Web API
+- SearXNG JSON search
+- Pluggable discovery-provider protocol
+- Discovery-result caching
+- URL deduplication
+- Search by keyword, location, and requirements
+
+### HTTP Acquisition
+
+- HTTP/HTTPS fetching
 - Redirect handling
-- Timeout and HTTP-error handling
-- Retry and throttling policies
-- `robots.txt` checking
+- Timeouts
+- HTTP error handling
+- Retryable server failures
+- Non-HTML response rejection
+- Robots.txt policy checks
 - Crawl-delay support
+- Request throttling
 - Per-domain request limits
-- JSON-LD / Schema.org extraction
-- Meta/OpenGraph/title fallbacks
-- Phone, email, address, website and location extraction
-- Keyword, location, category and requirements relevance filtering
-- Lead normalization
-- Identity-based lead deduplication
-- Duplicate-record merging
-- Source URL preservation
-- Lead quality validation
-- Fetch and parse failure tracking
-- JSON and CSV output
-- Optional DuckDB persistence
-- Automated pytest coverage
+- Structured fetch-failure categories
 
-## Requirements
+### Browser Acquisition
 
-- Python 3.12+
-- Internet access for live web discovery/fetching
-- A Brave Search API key when using the Brave provider
-- A running SearXNG instance when using the SearXNG provider
+Optional Playwright-based browser acquisition for pages where native HTTP fetching produces insufficient content.
 
-## Installation
+Browser fallback can be triggered by content-quality classifications such as:
 
-Clone or copy the project and create a virtual environment:
+- `empty_content`
+- `thin_content`
+- `js_shell`
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-```
+Browser acquisition supports:
 
-Install dependencies:
+- Headless Chromium
+- Configurable wait time
+- Selector waiting
+- Click actions
+- Scrolling
+- Bounded browser concurrency
 
-```bash
-pip install -r requirements.txt
-```
+### External Acquisition Providers
 
-The project can be installed as a Python package with `pip install .`, which also installs the `general-scraper` CLI entry point. Running `python run_scraper.py` directly from the repository remains supported for development.
+Optional external acquisition adapters:
 
-## Quick Start
+- Firecrawl
+- Scrape.do
+- Scrapingdog
 
-### Brave Search
+External providers are routed through policy-aware acquisition boundaries and are not required for normal HTTP-first operation.
 
-Set the Brave Search API key:
+### Extraction
 
-```bash
-export BRAVE_SEARCH_API_KEY="your-api-key"
-```
+Deterministic extraction from:
 
-Run a search:
+- JSON-LD
+- Schema.org
+- Meta descriptions
+- OpenGraph metadata
+- Title information
+- Contact information
+- Phone numbers
+- Email addresses
+- Addresses
+- Visible page content
 
-```bash
-python run_scraper.py \
-  --keyword doctor \
-  --location "Shahjahanpur, Uttar Pradesh"
-```
+Parser and extraction registries allow additional strategies without rewriting the core engine.
 
-Add requirements:
+### Relevance
 
-```bash
-python run_scraper.py \
-  --keyword doctor \
-  --location "Shahjahanpur, Uttar Pradesh" \
-  --requirements "homeopathy" \
-  --limit 20
-```
+Candidates can be evaluated using:
 
-The command prints discovered leads and a summary containing discovered pages, fetched pages, fetch failures and parse failures.
+- Keyword relevance
+- Location relevance
+- Category relevance
+- Requirements relevance
 
-### SearXNG
+### Location and Quality
 
-Start a SearXNG instance and provide its base URL:
+- Location validation
+- Lead-quality evaluation
+- Content-quality classification
+- Failed-page isolation
+- Structured quality metrics
 
-```bash
-python run_scraper.py \
-  --provider searxng \
-  --searxng-url "http://127.0.0.1:8080" \
-  --keyword dentist \
-  --location "Shahjahanpur, Uttar Pradesh"
-```
+Content-quality classifications:
 
-The default SearXNG URL is:
+| Classification   | Description                          |
+|------------------|--------------------------------------|
+| `valid_content`  | Usable page content                  |
+| `empty_content`  | No meaningful content                |
+| `thin_content`   | Insufficient content                 |
+| `js_shell`       | JavaScript-rendered shell            |
+| `error_page`     | Error page                           |
+| `block_page`     | Blocked page                         |
+| `access_blocked` | Access blocked                       |
+| `rate_limited`   | Rate limited                         |
+| `auth_required`  | Authentication required              |
 
-```text
-http://127.0.0.1:8080
-```
+### Crawling
 
-## CLI Usage
+Bounded same-site crawling with configurable:
 
-Show all available options:
+- Maximum pages
+- Maximum depth
+- Allowed domains
+- Include / exclude patterns
+- Concurrency
 
-```bash
-python run_scraper.py --help
-```
+Default limits are intentionally conservative.
 
-Main options:
+### Caching
 
-| Option           | Required | Default                 | Description                                      |
-| ---------------- | -------- | ----------------------- | ------------------------------------------------ |
-| `--keyword`      | Yes      | —                       | Search keyword, such as `doctor` or `restaurant` |
-| `--location`     | No       | empty                   | Target location                                  |
-| `--requirements` | No       | empty                   | Additional requirements                          |
-| `--limit`        | No       | `50`                    | Maximum discovered pages to process              |
-| `--provider`     | No       | `brave`                 | Discovery provider: `brave` or `searxng`         |
-| `--searxng-url`  | No       | `http://127.0.0.1:8080` | SearXNG base URL                                 |
-| `--json`         | No       | —                       | Write leads to a JSON file                       |
-| `--csv`          | No       | —                       | Write leads to a CSV file                        |
-| `--save-db`      | No       | disabled                | Persist leads to DuckDB                          |
-| `--db-path`      | No       | `data/leads.duckdb`     | DuckDB database path                             |
+Two cache layers:
 
-The keyword must not be empty and the limit must be a positive integer.
+- Discovery cache
+- Fetch-result cache
 
-## Output
+Fetch caching uses DuckDB and supports different TTL policies for general, high-change, and stable content.
 
-### Terminal
+### Concurrency
 
-The default terminal output contains:
+Bounded concurrency utilities for:
 
-* Lead count
-* Lead name
-* Category
-* Location
-* Address
-* Phone
-* Email
-* Website
-* Source name
-* Source URL
-* Discovery/fetch/parse summary
+- Global concurrency
+- Per-domain concurrency
+- Batch processing
+- Isolated task failures
 
-### JSON
+Concurrency is intentionally bounded to prevent uncontrolled request bursts.
 
-Write structured results to JSON:
+### Persistence
 
-```bash
-python run_scraper.py \
-  --keyword doctor \
-  --location "Shahjahanpur, Uttar Pradesh" \
-  --json results.json
-```
+Results can be written to:
 
-The JSON file contains an array of serialized `Lead` records.
+- Terminal output
+- JSON
+- CSV
+- DuckDB
 
-### CSV
-
-Write structured results to CSV:
-
-```bash
-python run_scraper.py \
-  --keyword doctor \
-  --location "Shahjahanpur, Uttar Pradesh" \
-  --csv results.csv
-```
-
-Nested fields such as social profiles and raw/extra data are serialized as JSON strings inside the CSV.
-
-### DuckDB
-
-Persistence is optional:
-
-```bash
-python run_scraper.py \
-  --keyword doctor \
-  --location "Shahjahanpur, Uttar Pradesh" \
-  --save-db
-```
-
-Use a custom database path:
-
-```bash
-python run_scraper.py \
-  --keyword doctor \
-  --save-db \
-  --db-path data/my-leads.duckdb
-```
-
-The repository normalizes leads and uses identity keys to avoid creating duplicate records.
+Run-level metrics can also be stored in DuckDB.
 
 ## Architecture
 
 ```text
-CLI
- │
- ▼
-SearchRequest
- │
- ▼
-WebDiscovery
- │
- ├── BraveSearchProvider
- └── SearXNGProvider
- │
- ▼
-DiscoveredPage
- │
- ▼
-PageFetcher
- │
- ▼
-FetchedPage
- │
- ▼
-PageParser
- │
- ▼
-Lead
- │
- ▼
-Relevance Filters
- │
- ▼
-LeadNormalizer
- │
- ▼
-LeadQuality
- │
- ▼
-Deduplication / Merge
- │
- ├── Terminal output
- ├── JSON
- ├── CSV
- └── Optional DuckDB repository
+Search / URL / Crawl Request
+        ↓
+Discovery / Source Router
+        ↓
+Discovery Cache
+        ↓
+DiscoveredPage[]
+        ↓
+Relevance / Policy Filter
+        ↓
+Acquisition Router
+        ↓
+HTTP → Content Quality → Browser → External Provider
+        ↓
+Content / Extraction Router
+        ↓
+Structured Data / Site Parser / Generic Parser
+        ↓
+Location / Lead Quality Validation
+        ↓
+Normalize + Deduplicate
+        ↓
+DuckDB / JSON / CSV / Terminal Output
+        +
+Run Metrics
 ```
 
 ### Discovery
 
-`WebDiscovery` builds search queries from the keyword, location and requirements and delegates searches to one or more providers.
+`WebDiscovery` delegates search requests to implementations of the `DiscoveryProvider` protocol.
 
-The provider abstraction is based on the `DiscoveryProvider` protocol, allowing additional providers to be added without changing the core discovery pipeline.
+Current providers:
 
-### Fetching
+- `BraveSearchProvider`
+- `SearXNGProvider`
 
-`PageFetcher` retrieves public HTTP/HTTPS pages and handles:
+Discovery results can be cached through `DiscoveryCache`.
 
-* redirects
-* timeouts
-* HTTP errors
-* retryable server failures
-* non-HTML responses
-* robots restrictions
-* crawl delays
-* request throttling
-* per-domain request limits
+### Acquisition
 
-Individual fetch failures are recorded rather than terminating the complete scrape.
+The acquisition layer separates fetching from discovery and parsing.
 
-### Parsing
+Normal path (HTTP-first):
 
-`PageParser` extracts lead information from public HTML.
+```text
+HTTPFetcherAdapter
+        ↓
+PageFetcher
+        ↓
+Content Quality
+        ↓
+Browser fallback when required
+```
 
-Structured data is read primarily from JSON-LD / Schema.org. The parser also falls back to:
+`AutoFetcher` evaluates fetched content and can route browser-relevant pages to `BrowserFetcher`.
 
-* meta descriptions
-* OpenGraph metadata
-* Twitter/title metadata
-* visible address elements
-* phone patterns
-* email patterns
+External acquisition providers can be used when an external scraping service is explicitly selected.
 
-Malformed HTML and invalid JSON-LD are handled defensively.
+### Policy
 
-### Relevance
+Native HTTP acquisition respects:
 
-Candidates can be filtered using:
+- Robots.txt
+- Crawl delay
+- Request limits
+- URL validation
+- Retry policy
+- Public HTTP/HTTPS boundaries
 
-* keyword relevance
-* location relevance
-* category relevance
-* requirements relevance
+External acquisition is also passed through policy-aware boundaries.
 
-This prevents obviously unrelated discovered pages from becoming final leads.
+The engine does **not** silently bypass:
+
+- Robots restrictions
+- Authentication
+- CAPTCHA
+- Access controls
+
+### Parsing and Extraction
+
+```text
+Fetched Content
+      ↓
+Content Quality
+      ↓
+Parser / Extraction Registry
+      ↓
+Structured Data
+      +
+Generic HTML Extraction
+      +
+Source-specific Adapter
+      ↓
+Lead
+```
+
+JSON-LD and Schema.org are preferred when reliable structured information is available.
+
+### Relevance and Location
+
+Discovered and acquired pages are evaluated before becoming final leads.
+
+Relevance filters can evaluate keyword, location, category, and requirements.
+
+Location validation provides an additional check before persistence.
 
 ### Normalization and Deduplication
 
 `LeadNormalizer` standardizes:
 
-* text
-* names
-* phone numbers
-* email addresses
-* URLs
+- Text
+- Names
+- Phone numbers
+- Email addresses
+- URLs
 
-Identity keys can use available combinations of phone, email, website/name, company/name, address, profession and location.
+Identity keys can use available combinations of:
 
-When duplicate leads are detected, available information is merged and source URLs are preserved.
+- Phone
+- Email
+- Website / name
+- Company / name
+- Address
+- Profession
+- Location
 
-## Lead Schema
+Duplicate leads can be merged while preserving source URLs and available information.
 
-The main `Lead` model contains the following groups of fields.
+### Metrics
 
-### Identity
+Run-level metrics can track:
 
-* `name`
-* `profession`
-* `company_name`
-* `category`
-* `subcategory`
+- Acquisition strategy
+- Browser usage
+- External-provider usage
+- Cache hits / misses
+- Content-quality results
+- Lead-quality results
+- Failure categories
+- Workload results
 
-### Professional / Business
+## Installation
 
-* `designation`
-* `specialization`
-* `services`
-* `description`
+Python 3.12 or newer is recommended.
 
-### Contact
-
-* `phone`
-* `alternate_phone`
-* `email`
-* `alternate_email`
-* `website`
-
-### Address
-
-* `address`
-* `location`
-* `locality`
-* `city`
-* `district`
-* `state`
-* `country`
-* `pincode`
-
-### Public Profiles
-
-* `social_profiles`
-
-### Source / Discovery
-
-* `source_url`
-* `source_name`
-* `source_id`
-* `search_context`
-
-### Flexible Data
-
-* `extra`
-* `raw_data`
-
-The model can be serialized using `Lead.to_dict()`.
-
-## Programmatic API
-
-The main implementation modules are:
-
-```text
-scraper/
-├── models.py
-├── discovery.py
-├── fetcher.py
-├── parser.py
-├── relevance.py
-├── normalizer.py
-├── quality.py
-├── engine.py
-├── providers/
-│   ├── brave.py
-│   └── searxng.py
-└── database/
-    ├── repository.py
-    └── duckdb.py
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+pip install .
 ```
 
-Core classes include:
+This installs the `general-scraper` command.
 
-* `Lead`
-* `SearchRequest`
-* `DiscoveredPage`
-* `DiscoveryProvider`
-* `WebDiscovery`
-* `FetchedPage`
-* `PageFetcher`
-* `PageParser`
-* `LeadNormalizer`
-* `LeadQuality`
-* `ScraperEngine`
-* `ScrapeResult`
-* `BraveSearchProvider`
-* `SearXNGProvider`
-* `DuckDBLeadRepository`
+The original script entry point remains supported:
 
-The high-level `scrape()` function in `scraper.engine` provides the main programmatic pipeline entry point.
+```bash
+python run_scraper.py
+```
 
-## Discovery Providers
+## Requirements
 
-### Brave Search
+Core requirements:
 
-`BraveSearchProvider` uses the Brave Search Web API.
+- Python 3.12+
+- Internet access for live web acquisition
+- A discovery provider
 
-Configuration is supplied through:
+**Brave Search**
 
 ```bash
 export BRAVE_SEARCH_API_KEY="your-api-key"
 ```
 
-The provider also supports explicit API-key injection when used programmatically.
+**SearXNG** — provide the URL of a running SearXNG instance.
+
+## Quick Start
+
+### Brave Search
+
+```bash
+export BRAVE_SEARCH_API_KEY="your-api-key"
+
+general-scraper \
+  --provider brave \
+  --keyword "dentist" \
+  --location "Shahjahanpur" \
+  --requirements "clinic"
+```
 
 ### SearXNG
 
-`SearXNGProvider` connects to a SearXNG server using its JSON search endpoint.
-
-Example:
-
 ```bash
-python run_scraper.py \
+general-scraper \
   --provider searxng \
   --searxng-url "http://127.0.0.1:8080" \
-  --keyword restaurant
+  --keyword "dentist" \
+  --location "Shahjahanpur" \
+  --requirements "clinic"
 ```
 
-Because discovery is provider-based, the core scraper does not depend on one specific search service.
-
-## Public-Web and Robots Policy
-
-This project is intended for public-web scraping only.
-
-The engine does not provide mechanisms for:
-
-* login bypass
-* CAPTCHA bypass
-* private-page access
-* authentication bypass
-* access-control circumvention
-
-Before fetching a page, the fetcher checks the site's `robots.txt` policy. Where supported, crawl-delay directives are respected.
-
-Request throttling and per-domain limits are also available to reduce unnecessary request pressure.
-
-A robots check failure is treated as a fetch failure rather than silently assuming permission.
-
-## Error Handling
-
-The scraper is designed so that one problematic page does not normally terminate an entire scrape.
-
-Tracked failures include:
-
-* HTTP 4xx responses
-* HTTP 5xx responses
-* request timeouts
-* redirects/fetch failures
-* robots-policy failures
-* non-HTML pages
-* malformed pages
-* invalid JSON-LD
-* parser failures
-
-`ScrapeResult` exposes discovered pages, successful fetches, fetch failures, parse failures and final leads.
-
-## Examples
-
-### Doctors in a city
+Original script entry point:
 
 ```bash
 python run_scraper.py \
-  --keyword doctor \
-  --location "Shahjahanpur, Uttar Pradesh" \
-  --limit 25
+  --provider brave \
+  --keyword "dentist" \
+  --location "Shahjahanpur"
 ```
 
-### Restaurants with JSON output
+## Programmatic API
+
+Main modules:
+
+```text
+scraper/
+├── models.py
+├── discovery.py
+├── acquisition.py
+├── fetcher.py
+├── browser_fetcher.py
+├── parser.py
+├── extraction.py
+├── structured_data.py
+├── registry.py
+├── relevance.py
+├── location.py
+├── content_quality.py
+├── quality.py
+├── normalizer.py
+├── concurrency.py
+├── crawler.py
+├── cache/
+│   ├── discovery.py
+│   └── fetch.py
+├── providers/
+│   ├── brave.py
+│   ├── searxng.py
+│   ├── firecrawl.py
+│   ├── scrape_do.py
+│   └── scrapingdog.py
+├── source_adapter.py
+├── source_google_maps.py
+├── source_google_maps_browser.py
+├── source_justdial_browser.py
+├── database/
+│   ├── repository.py
+│   ├── duckdb.py
+│   └── run_metrics.py
+└── engine.py
+```
+
+### Example
+
+```python
+from scraper.discovery import SearchRequest, WebDiscovery
+from scraper.engine import scrape
+from scraper.providers.brave import BraveSearchProvider
+
+request = SearchRequest(
+    keyword="dentist",
+    location="Shahjahanpur",
+    requirements="clinic",
+    limit=20,
+)
+
+provider = BraveSearchProvider()
+discovery = WebDiscovery(provider)
+
+result = scrape(request, discovery)
+
+for lead in result.leads:
+    print(lead.to_dict())
+```
+
+### Core Types
+
+- `SearchRequest`
+- `DiscoveredPage`
+- `FetchedPage`
+- `Lead`
+- `ScrapeResult`
+- `DiscoveryProvider`
+- `WebDiscovery`
+- `AcquisitionStrategy`
+- `FetchRequest`
+- `ExternalFetchRequest`
+- `HTTPFetcherAdapter`
+- `AutoFetcher`
+- `BrowserFetcher`
+- `ExternalFetcher`
+- `PolicyAwareExternalFetcher`
+- `CachedFetcher`
+- `PageParser`
+- `ParserRegistry`
+- `ExtractionRegistry`
+- `ContentQualityClassifier`
+- `LocationValidator`
+- `LeadQuality`
+- `LeadRepository`
+- `DuckDBLeadRepository`
+- `RunMetrics`
+- `SiteCrawler`
+
+The high-level `scrape()` function in `scraper.engine` is the main programmatic entry point. It accepts composable discovery, acquisition, parsing, relevance, location, and persistence components.
+
+## Discovery Providers
+
+### Brave Search
 
 ```bash
-python run_scraper.py \
-  --keyword restaurant \
-  --location "Shahjahanpur, Uttar Pradesh" \
-  --limit 25 \
-  --json restaurants.json
+export BRAVE_SEARCH_API_KEY="your-api-key"
 ```
 
-### Business leads with CSV output
+Supports explicit API-key injection when used programmatically.
+
+### SearXNG
+
+```python
+from scraper.providers.searxng import SearXNGProvider
+
+provider = SearXNGProvider(base_url="http://127.0.0.1:8080")
+```
+
+Default endpoint: `http://127.0.0.1:8080`
+
+## Acquisition Providers
+
+### Native HTTP
+
+Default and lowest-cost path:
+
+```python
+from scraper.acquisition import HTTPFetcherAdapter
+```
+
+### Browser
+
+Requires Playwright:
 
 ```bash
-python run_scraper.py \
-  --keyword "real estate agent" \
-  --location "Lucknow, Uttar Pradesh" \
-  --csv leads.csv
+pip install playwright
+playwright install chromium
 ```
 
-### Persistent lead collection
+Use only when native HTTP content is insufficient.
+
+### External Providers
+
+| Provider    | Environment Variable          |
+|-------------|-------------------------------|
+| Firecrawl   | `FIRECRAWL_API_KEY`           |
+| Scrape.do   | `SCRAPE_DO_API_KEY`           |
+| Scrapingdog | `SCRAPINGDOG_API_KEY`         |
+
+External adapters are programmatic integrations. The CLI discovery interface exposes Brave and SearXNG.
+
+## Policy and Public-Web Boundaries
+
+Designed for public-web acquisition.
+
+Native HTTP fetching can enforce:
+
+- Robots.txt
+- Crawl delay
+- Per-domain request limits
+- Retry policy
+- URL validation
+- Request throttling
+
+A robots-policy failure is treated as a policy failure (not silently ignored).
+
+The engine does **not** provide mechanisms to bypass:
+
+- Authentication
+- CAPTCHA challenges
+- Access controls
+- Robots restrictions
+
+## Failure Categories
+
+**Fetch failures:**
+
+```text
+timeout
+policy
+request-limit
+auth
+access-blocked
+rate-limit
+server-error
+invalid-response
+```
+
+**Content quality:**
+
+```text
+valid_content
+empty_content
+thin_content
+js_shell
+error_page
+block_page
+access_blocked
+rate_limited
+auth_required
+```
+
+Only browser-relevant cases (`empty_content`, `thin_content`, `js_shell`) are candidates for automatic browser fallback.
+
+Individual acquisition failures are isolated — one failed page does not terminate the scrape.
+
+## Crawling
+
+`SiteCrawler` provides bounded same-site crawling.
+
+**Default limits:**
+
+```text
+max_pages = 10
+max_depth = 1
+global crawler concurrency = 1
+```
+
+Supports:
+
+- Same-domain restrictions
+- Explicit allowed domains
+- Include / exclude patterns
+- Bounded page count and depth
+- Isolated acquisition failures
+
+## Caching
+
+### Discovery Cache
+
+`DiscoveryCache` stores discovered URLs to reduce repeated search-provider calls.
+
+### Fetch Cache
+
+`FetchCache` + `CachedFetcher` cache successful fetch results.
+
+Default location: `data/fetch_cache.duckdb`
+
+**Default TTL policies:**
+
+| Content Type       | TTL      |
+|--------------------|----------|
+| General content    | 24 hours |
+| High-change content| 1 hour   |
+| Stable content     | 7 days   |
+
+Only successful pages are cached.
+
+## Concurrency
+
+Bounded concurrency via:
+
+- `ConcurrencyConfig`
+- `BoundedExecutor`
+- `DomainConcurrencyLimiter`
+
+`BoundedExecutor.map_isolated()` isolates individual workload failures without cancelling unrelated work.
+
+## Database
+
+DuckDB is supported for local persistence.
 
 ```bash
-python run_scraper.py \
-  --keyword dentist \
-  --location "Shahjahanpur, Uttar Pradesh" \
-  --save-db \
-  --db-path data/dentists.duckdb
+general-scraper \
+  --provider brave \
+  --keyword "dentist" \
+  --location "Shahjahanpur" \
+  --db-path data/my-leads.duckdb
 ```
+
+The repository normalizes leads and uses identity keys to avoid duplicate records. Run metrics can also be persisted.
+
+## Content Quality
+
+```text
+HTTP response
+      ↓
+ContentQualityClassifier
+      ↓
+valid_content?
+      ├── yes → parsing
+      └── no  → browser fallback (when eligible)
+```
+
+Browser fallback is not intended to replace HTTP acquisition globally.
+
+## Source Adapters
+
+Source-specific adapters via `SourceAdapter` and `SourceAdapterRegistry`.
+
+Current implementations:
+
+- Google Maps HTTP adapter
+- Google Maps browser adapter
+- Justdial browser adapter
+
+Additional specialized adapters should demonstrate measurable value before inclusion.
 
 ## Testing
 
-Run the complete test suite:
-
 ```bash
-python -m pytest -q
+# Full test suite
+pytest -q
+
+# Compile check
+python -m compileall -q scraper benchmark tests
+
+# Phase 16 benchmark
+python benchmark/phase16/runner.py
 ```
 
-The test suite covers discovery, providers, fetching, parsing, normalization, relevance, quality validation, engine behavior, CLI behavior and DuckDB persistence.
+Benchmark matrix covers:
 
-Python compilation can also be checked with:
+- Static pages
+- Content-quality matrix
+- Repeated URLs
+- Large batches
+- Extraction
+- Location and quality
+- Sequential vs concurrent acquisition
+- HTTP vs browser acquisition
+- Native vs external acquisition
+- Cache vs no-cache behavior
+
+## Benchmarking Principles
+
+- HTTP remains the default acquisition path
+- Browser rendering is fallback-driven
+- External scraping services remain optional
+- Proxy infrastructure should be evidence-driven
+- Deterministic extraction is preferred over AI-first extraction
+- Existing public APIs should remain compatible
+- Performance changes require benchmark evidence
+- Site-specific implementations must demonstrate value
+- Project policy must never be silently bypassed
+
+## Compatibility
+
+Supported entry points:
 
 ```bash
-python -m compileall scraper run_scraper.py
+general-scraper
+python run_scraper.py
 ```
 
-## Limitations
+Programmatic usage:
 
-This is a public-web lead scraper, not a universal crawler.
+```python
+from scraper.engine import scrape
+# or
+from scraper.engine import ScraperEngine
+```
 
-Results depend on:
-
-* search-provider availability and ranking
-* search API configuration
-* public page availability
-* page structure and markup quality
-* robots policies
-* network conditions
-* rate limits
-* information exposed by each website
-
-Not every website exposes structured business information, and some pages may require JavaScript rendering that the current HTTP/HTML pipeline does not execute.
-
-The CLI is available both as the installed `general-scraper` command and as `python run_scraper.py` when running directly from the repository.
+The acquisition layer is composable — native HTTP, browser, and external strategies can be used without rewriting discovery or persistence layers.
 
 ## Project Status
 
-The core scraping pipeline, documentation, packaging, and release validation are implemented through Phase 17.
+Core pipeline, documentation, packaging, benchmark validation, and release-audit work are implemented through **Phase 17**.
 
-Current development phase:
+Current focus:
 
-**Phase 17 — Final Test & Release Audit**
+```text
+Phase 17 — Documentation & Public API
+```
 
 The project is undergoing final V1 release checks.
 
+## Deferred Work (Outside v1 Scope)
+
+- Background job queue
+- Webhook delivery
+- Persistent browser sessions
+- Advanced browser workflows
+- AI-first extraction and agent workflows
+- Large-scale distributed crawling
+- Extensive Justdial / OLX parsers
+- Residential proxy rotation
+- In-house CAPTCHA solving
+- Firecrawl-scale cloud orchestration
+
+## Design Principles
+
+1. HTTP is the cheapest and default acquisition path.
+2. Browser rendering is fallback-driven, not browser-first.
+3. External scraping services are optional.
+4. Proxy infrastructure is introduced only when evidence justifies it.
+5. Deterministic extraction is preferred over AI-first extraction.
+6. Existing public APIs remain compatible wherever practical.
+7. Performance decisions require benchmark evidence.
+8. Site-specific implementations require demonstrated value.
+9. Robots and project policy must never be silently bypassed.
+10. Local and self-hosted operation remain first-class.
+
 ## License
 
-See [LICENSE](LICENSE) for the project license.
+See [LICENSE](LICENSE).
