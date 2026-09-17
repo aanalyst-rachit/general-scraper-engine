@@ -1,0 +1,35 @@
+{
+  "benchmark": "phase-15-batch-processing",
+  "workload_items": 40,
+  "work_delay_ms": 50.0,
+  "intentional_failures": 3,
+  "baseline": {
+    "mode": "sequential",
+    "concurrency": 1,
+    "items": 40,
+    "successful_items": 37,
+    "failed_items": 3,
+    "total_ms": 2007.042,
+    "throughput_items_per_sec": 19.93
+  },
+  "batch_c4": {
+    "mode": "bounded_batch_map_isolated",
+    "concurrency": 4,
+    "items": 40,
+    "successful_items": 37,
+    "failed_items": 3,
+    "total_ms": 510.719,
+    "throughput_items_per_sec": 78.321,
+    "speedup_vs_sequential": 3.93
+  },
+  "batch_c8": {
+    "mode": "bounded_batch_map_isolated",
+    "concurrency": 8,
+    "items": 40,
+    "successful_items": 37,
+    "failed_items": 3,
+    "total_ms": 260.498,
+    "throughput_items_per_sec": 153.552,
+    "speedup_vs_sequential": 7.705
+  }
+}

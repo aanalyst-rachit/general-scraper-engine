@@ -10,6 +10,19 @@ R = TypeVar("R")
 
 
 @dataclass(frozen=True)
+class BatchItemResult:
+    """Result for one item in an isolated bounded batch."""
+
+    input: object
+    result: object | None = None
+    error: Exception | None = None
+
+    @property
+    def ok(self) -> bool:
+        return self.error is None
+
+
+@dataclass(frozen=True)
 class ConcurrencyConfig:
     """
     Formal concurrency limits for the scraper engine.
@@ -91,6 +104,91 @@ class BoundedExecutor:
             pending.append(self._executor.submit(function, value))
 
         return results
+
+    def map_isolated(
+        self,
+        function: Callable[[T], R],
+        values: Iterable[T],
+        *,
+        domain_limiter: DomainConcurrencyLimiter | None = None,
+        domain_key: Callable[[T], str] | None = None,
+    ) -> list[BatchItemResult]:
+        """Run a bounded batch while isolating failures per item.
+
+        Results preserve input order. Each item captures its own exception
+        instead of allowing one failed task to abort the entire batch.
+        When a domain limiter is supplied, ``domain_key`` identifies the
+        domain for each input item.
+        """
+        if self._shutdown:
+            raise RuntimeError("executor has been shut down")
+
+        if domain_limiter is not None and domain_key is None:
+            raise ValueError(
+                "domain_key is required when domain_limiter is provided"
+            )
+
+        iterator = iter(values)
+        pending: list[tuple[T, Future[BatchItemResult]]] = []
+
+        def submit(value: T) -> None:
+            pending.append(
+                (
+                    value,
+                    self._executor.submit(
+                        self._run_isolated,
+                        function,
+                        value,
+                        domain_limiter,
+                        domain_key,
+                    ),
+                )
+            )
+
+        for _ in range(self.max_concurrency):
+            try:
+                submit(next(iterator))
+            except StopIteration:
+                break
+
+        results: list[BatchItemResult] = []
+        while pending:
+            _, future = pending.pop(0)
+            results.append(future.result())
+
+            try:
+                submit(next(iterator))
+            except StopIteration:
+                continue
+
+        return results
+
+    @staticmethod
+    def _run_isolated(
+        function: Callable[[T], R],
+        value: T,
+        domain_limiter: DomainConcurrencyLimiter | None,
+        domain_key: Callable[[T], str] | None,
+    ) -> BatchItemResult:
+        semaphore = None
+
+        try:
+            if domain_limiter is not None:
+                domain = domain_key(value)
+                semaphore = domain_limiter.acquire(domain)
+
+            return BatchItemResult(
+                input=value,
+                result=function(value),
+            )
+        except Exception as exc:
+            return BatchItemResult(
+                input=value,
+                error=exc,
+            )
+        finally:
+            if semaphore is not None:
+                semaphore.release()
 
     def shutdown(self, wait: bool = True) -> None:
         if self._shutdown:

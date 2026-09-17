@@ -255,11 +255,11 @@ This tracker is the locked v1.0.2 implementation scope. Competitor features from
 
 ## PHASE 15 — Batch Processing
 
-- [ ] Design bounded batch fetch API
-- [ ] Reuse concurrency controls
-- [ ] Preserve per-domain limits
-- [ ] Preserve failure isolation
-- [ ] Benchmark batch throughput
+- [x] Design bounded batch fetch API
+- [x] Reuse concurrency controls
+- [x] Preserve per-domain limits
+- [x] Preserve failure isolation
+- [x] Benchmark batch throughput
 
 ## PHASE 16 — Test & Benchmark Matrix
 
