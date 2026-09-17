@@ -263,19 +263,19 @@ This tracker is the locked v1.0.2 implementation scope. Competitor features from
 
 ## PHASE 16 — Test & Benchmark Matrix
 
-- [ ] Normal static HTML workload
-- [ ] JS-heavy workload
-- [ ] Empty/thin content workload
-- [ ] Blocked/rate-limited workload
-- [ ] Repeated URL workload
-- [ ] Large URL batch workload
-- [ ] Generic extraction workload
-- [ ] Structured-data extraction workload
-- [ ] Location-quality workload
-- [ ] Sequential vs concurrent comparison
-- [ ] HTTP vs browser comparison
-- [ ] Native vs external-provider comparison
-- [ ] Cache vs no-cache comparison
+- [x] Normal static HTML workload
+- [x] JS-heavy workload
+- [x] Empty/thin content workload
+- [x] Blocked/rate-limited workload
+- [x] Repeated URL workload
+- [x] Large URL batch workload
+- [x] Generic extraction workload
+- [x] Structured-data extraction workload
+- [x] Location-quality workload
+- [x] Sequential vs concurrent comparison
+- [x] HTTP vs browser comparison
+- [x] Native vs external-provider comparison
+- [x] Cache vs no-cache comparison
 
 ## PHASE 17 — Documentation & Public API
 

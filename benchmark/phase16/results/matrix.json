@@ -1,0 +1,106 @@
+{
+  "benchmark": "phase-16-test-benchmark-matrix",
+  "workloads": [
+    {
+      "name": "normal_static_html",
+      "passed": true,
+      "status_code": 200,
+      "content_bytes": 267
+    },
+    {
+      "name": "content_quality_workloads",
+      "passed": true,
+      "cases": {
+        "js_heavy": {
+          "quality": "js_shell",
+          "needs_browser_fallback": true,
+          "passed": true
+        },
+        "empty_thin": {
+          "quality": "empty_content",
+          "needs_browser_fallback": true,
+          "passed": true
+        },
+        "blocked": {
+          "quality": "access_blocked",
+          "needs_browser_fallback": false,
+          "passed": true
+        },
+        "rate_limited": {
+          "quality": "rate_limited",
+          "needs_browser_fallback": false,
+          "passed": true
+        }
+      }
+    },
+    {
+      "name": "repeated_url",
+      "passed": true,
+      "underlying_calls": 1,
+      "cache_hits": 1,
+      "cache_misses": 1
+    },
+    {
+      "name": "large_url_batch",
+      "passed": true,
+      "items": 40,
+      "peak_workers": 8,
+      "elapsed_ms": 59.506,
+      "throughput_items_per_sec": 672.206
+    },
+    {
+      "name": "generic_and_structured_extraction",
+      "passed": true,
+      "lead_name": "Amit Coaching Academy",
+      "structured_fields": [
+        "address",
+        "address_locality",
+        "address_region",
+        "category",
+        "description",
+        "email",
+        "name",
+        "telephone",
+        "url"
+      ]
+    },
+    {
+      "name": "location_quality",
+      "passed": true,
+      "matching_location": true,
+      "wrong_location": false
+    },
+    {
+      "name": "sequential_vs_concurrent",
+      "passed": true,
+      "sequential_ms": 483.839,
+      "concurrent_ms": 65.401,
+      "speedup": 7.398
+    },
+    {
+      "name": "http_vs_browser",
+      "passed": true,
+      "http_strategy": "http",
+      "browser_strategy": "browser",
+      "browser_calls": 1
+    },
+    {
+      "name": "native_vs_external_provider",
+      "passed": true,
+      "native_strategy": "http",
+      "external_strategy": "external"
+    },
+    {
+      "name": "cache_vs_no_cache",
+      "passed": true,
+      "uncached_ms": 0.002,
+      "cached_ms": 24.516,
+      "uncached_calls": 2,
+      "cached_underlying_calls": 1,
+      "cache_hits": 1
+    }
+  ],
+  "passed_workloads": 10,
+  "total_workloads": 10,
+  "all_passed": true
+}
