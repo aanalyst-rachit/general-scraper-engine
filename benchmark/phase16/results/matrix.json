@@ -45,8 +45,8 @@
       "passed": true,
       "items": 40,
       "peak_workers": 8,
-      "elapsed_ms": 62.526,
-      "throughput_items_per_sec": 639.732
+      "elapsed_ms": 63.108,
+      "throughput_items_per_sec": 633.83
     },
     {
       "name": "generic_and_structured_extraction",
@@ -73,9 +73,9 @@
     {
       "name": "sequential_vs_concurrent",
       "passed": true,
-      "sequential_ms": 483.951,
-      "concurrent_ms": 65.985,
-      "speedup": 7.334
+      "sequential_ms": 483.877,
+      "concurrent_ms": 66.823,
+      "speedup": 7.241
     },
     {
       "name": "http_vs_browser",
@@ -94,7 +94,7 @@
       "name": "cache_vs_no_cache",
       "passed": true,
       "uncached_ms": 0.002,
-      "cached_ms": 27.481,
+      "cached_ms": 28.666,
       "uncached_calls": 2,
       "cached_underlying_calls": 1,
       "cache_hits": 1
