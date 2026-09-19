@@ -14,6 +14,7 @@ from scraper.providers.scrape_do import ScrapeDoProvider
 from scraper.providers.scrapingdog import ScrapingdogProvider
 from scraper.providers.searxng import SearXNGProvider
 from scraper.source_google_maps import GoogleMapsAdapter
+from scraper.source_google_maps_ocr import GoogleMapsOCRAdapter
 from scraper.source_google_maps_browser import (
     GoogleMapsBrowserAdapter,
     default_browser_factory as google_maps_browser_factory,
@@ -127,6 +128,7 @@ def build_parser() -> argparse.ArgumentParser:
             "discovery",
             "google-maps",
             "google-maps-browser",
+            "google-maps-ocr",
             "justdial-browser",
         ),
         default="discovery",
@@ -400,6 +402,9 @@ def run_direct_source(args: argparse.Namespace):
             timeout=getattr(args, "source_timeout", 15.0),
             wait_for_timeout=getattr(args, "source_wait", 1),
         )
+
+    elif source == "google-maps-ocr":
+        adapter = GoogleMapsOCRAdapter()
 
     elif source == "justdial-browser":
         adapter = JustdialBrowserAdapter(

@@ -1,357 +1,333 @@
-# General Scraper Engine — v1.0.2 Tracker
+# Google Maps OCR Adapter — Implementation Tracker
 
-## v1.0.2 — Architecture & Capability Upgrade
+## Task Identity
 
-**Status:** SCOPE LOCKED — implementation follows this tracker
+- Task name: Google Maps OCR Adapter
+- Adapter name: `google-maps-ocr`
+- Status: PLANNED
+- Scope: This is a completely separate task from the existing `google-maps` and `google-maps-browser` adapters.
+- Primary goal: Acquire eligible road/Street View imagery through an appropriate Google-supported imagery/API flow, extract shop-board text using OCR, convert useful board information into validated `Lead` objects, and persist only genuinely new leads.
+- Important: Do NOT merge this task into the current Google Maps Browser incremental-fetch task.
 
-### Release Goal
+## Scope Separation — LOCKED
 
-Upgrade General Scraper Engine from a synchronous HTTP-oriented lead scraper into a pluggable web acquisition engine with smart HTTP/browser fallback, bounded concurrency, provider routing, caching, structured extraction, crawling, quality measurement, and optional external scraping-provider integrations.
+The following adapters remain conceptually independent:
 
-### Scope Rule
+- `google-maps` — existing Google Maps Places/API adapter.
+- `google-maps-browser` — existing Google Maps browser/Playwright adapter.
+- `google-maps-ocr` — NEW adapter for imagery-based OCR acquisition.
 
-This tracker is the locked v1.0.2 implementation scope. Competitor features from Firecrawl, Scrape.do, and Scrapingdog are treated as R&D inputs, not as requirements to copy wholesale.
+The OCR adapter may reuse generic infrastructure such as `SearchRequest`, `Lead`, normalization, quality validation, repositories, CLI plumbing, and common utilities where appropriate, but it must have its own adapter implementation and its own tests.
 
----
+Do NOT add OCR logic directly into `google_maps.py` or `google_maps_browser.py`.
 
-## PHASE 0 — Baseline & R&D Validation
+## Core Objective
 
-- [x] Establish reproducible benchmark workload
-- [x] Measure discovery latency
-- [x] Measure per-page fetch latency
-- [x] Measure parse latency
-- [x] Measure total run latency
-- [x] Measure discovered / filtered / fetched / parsed / valid / duplicate counts
-- [x] Categorize HTTP, robots, timeout, block, empty-content, and parse failures
-- [x] Measure lead yield and time-to-first-lead
-- [x] Compare sequential vs bounded-concurrent execution
-- [x] Record baseline before performance architecture changes
-
-## PHASE 1 — Acquisition Architecture
-
-- [x] Preserve existing PageFetcher compatibility
-- [x] Introduce acquisition strategy abstraction
-- [x] Define FetchRequest / FetchResponse contract
-- [x] Define HTTP / browser / external acquisition strategies
-- [x] Introduce acquisition router
-- [x] Keep robots and policy enforcement above provider-specific infrastructure
-
-## PHASE 2 — Smart HTTP Acquisition
-
-- [x] Audit current PageFetcher for reuse
-- [x] Add content-quality detection after HTTP fetch
-- [x] Detect thin/empty/JS-shell/error/block pages
-- [x] Define deterministic browser-fallback triggers
-- [x] Preserve current timeout, retry, robots, and domain-limit behavior
-- [x] Evaluate randomized delay separately; do not assume it is already implemented
-
-## PHASE 3 — Browser Fetching
-
-- [x] Evaluate Playwright dependency and runtime footprint
-- [x] Implement BrowserFetcher behind acquisition interface
-- [x] Support navigation
-- [x] Support bounded waiting
-- [x] Support selector waiting
-- [x] Support controlled scrolling
-- [x] Support basic click interaction where required
-- [x] Return normalized fetched content through common FetchResponse
-- [x] HTTP-first → browser fallback becomes default AUTO strategy
-- [x] Keep browser concurrency separately bounded
-
-## PHASE 4 — Async / Bounded Concurrency
-
-- [x] Introduce bounded async execution
-- [x] Define global concurrency limit
-- [x] Define per-domain concurrency limit
-- [ ] Define provider concurrency limit
-- [x] Ensure robots/request-delay policy remains enforced
-- [x] Benchmark sequential vs concurrent fetch performance
-  - Canonical `benchmark/v1_0_2` workload: 26 cases, 25 fetch successes, 1 fetch failure, 25 valid leads, 6751 content bytes.
-  - Fresh sequential baseline: 1921.253 ms.
-  - Bounded concurrency 4: 2300.985 ms (0.83x vs baseline).
-  - Bounded concurrency 8: 1547.554 ms (1.24x vs baseline; 1.49x vs C4).
-  - Benchmark runner uses production `scraper.concurrency.BoundedExecutor`; C4/C8 results are independently recorded.
-- [x] Avoid unbounded asyncio tasks
-
-## PHASE 5 — Discovery Provider Routing
-
-- [x] Preserve DiscoveryProvider protocol
-- [x] Add provider router/policy layer
-- [x] Support primary provider and explicit fallback providers
-- [x] Categorize provider failures: no-results, timeout, auth, rate-limit, server-error, invalid-response
-- [x] Define quality-based fallback policy separately from failure fallback
-- [x] Preserve existing query deduplication
-- [x] Preserve existing per-run URL deduplication
-- [x] Evaluate SearXNG / Brave as current native providers
-  - Brave Search Web API and SearXNG JSON providers are implemented, tested, CLI-integrated, and documented.
-- [x] Evaluate optional external search providers before implementation
-  - No additional external provider was selected for implementation; the provider-agnostic protocol/router remains available for future integrations.
-
-## PHASE 6 — Discovery Cache
-
-- [x] Design discovery cache schema
-- [x] Define canonical cache key including provider/config/query/search parameters
-- [x] Store creation and expiry timestamps
-- [x] Define TTL policy by discovery source/use case
-- [x] Implement DuckDB-backed discovery cache only after benchmark validates benefit
-  - Benchmark: 20 iterations, 95% cache hit rate, 95% provider-call reduction, 2.72x mean latency speedup.
-- [x] Measure cache hit/miss behavior
-  - DuckDB benchmark: 19 hits / 1 miss; provider calls reduced from 100 to 5.
-
-## PHASE 7 — Fetch Cache
-
-- [x] Design fetch cache schema
-- [x] Include canonical URL, acquisition strategy, status, content type, content hash, timestamps, and metadata
-- [x] Define cache invalidation/TTL policy
-- [x] Evaluate HTML storage size before committing to DuckDB blob storage
-- [x] Implement cache only after storage/performance R&D
-- [x] Measure repeated-fetch latency reduction
-  - Repeated local HTTP fetch benchmark: 20 iterations, 19 cache hits / 1 miss, 95% hit rate.
-  - Baseline mean: 63.537 ms; cached mean: 6.376 ms; 9.965x mean speedup and 89.96% mean latency reduction.
-  - Actual underlying fetch calls: 20 baseline vs 1 cached; 95% call reduction.
-
-## PHASE 8 — Content & Extraction Layer
-
-- [x] Introduce content-quality classification
-  - Added deterministic classification for valid, empty, thin, JS-shell, HTTP-error, and block/challenge pages; browser fallback remains limited to content-quality cases that can benefit from rendered acquisition.
-- [x] Preserve existing generic parser
-  - Existing HTML/meta/address/email/phone extraction behavior preserved while JSON-LD extraction was separated into its own strategy.
-- [x] Add structured-data extraction path (Schema.org/JSON-LD)
-  - Added deterministic Schema.org/JSON-LD extraction with support for entity types, `@graph`, arrays, type lists, malformed-script tolerance, and structured address/category fields.
-- [x] Define extraction strategy interface
-  - Added `ExtractionStrategy` protocol returning normalized extraction fields or no result.
-- [x] Introduce parser/extractor registry
-  - Added `ParserRegistry` for domain-specific parsers and `ExtractionRegistry` for ordered extraction strategies.
-- [x] Route site-specific parser before generic fallback
-  - Engine resolves registered parsers by domain first, uses the generic parser for unknown domains, and falls back to the generic parser when a registered parser returns no lead.
-- [x] Keep deterministic extraction ahead of optional AI extraction
-  - Deterministic extraction is the only active extraction path; ordered `ExtractionRegistry` provides the extension point for future optional strategies without making AI a prerequisite.
-- [x] Evaluate Markdown representation as an optional normalized content format
-  - Evaluated against the current architecture. Raw HTML remains the canonical representation because deterministic DOM and JSON-LD extraction depend on HTML structure/metadata; Markdown is not required as an intermediate representation and no conversion dependency is introduced.
-
-## PHASE 9 — Lead Quality & Relevance
-
-- [x] Audit existing LeadQuality and relevance behavior
-  - Existing deterministic LeadQuality validation and keyword/location/category/requirements relevance behavior were audited and preserved.
-- [x] Define requested-location vs extracted-location validation
-  - Added deterministic LocationValidator coverage across locality, city, district, state, location text, and address evidence.
-- [x] Detect conflicting location evidence
-  - Conflicting free-text location/address evidence is rejected when it contradicts the requested location.
-- [x] Define lead quality scoring dimensions
-  - LeadQuality now reports deterministic identity, contact, web presence, location, business context, and source evidence dimensions.
-- [x] Measure lead quality separately from fetch success
-  - Engine results now expose checked, accepted, and rejected quality counts independently of fetched-page counts.
-- [x] Preserve current Lead model compatibility
-  - Existing Lead fields, defaults, location fields, and to_dict() serialization remain compatible and are covered by regression tests.
-- [x] Avoid accepting technically valid but geographically irrelevant leads
-  - Geographic relevance is enforced before LeadQuality acceptance, preventing technically valid leads from irrelevant locations from entering final results.
-
-
-## PHASE 10 — Map & Crawl
-
-- [x] Design bounded site-map operation
-  - Added `SiteCrawler` with bounded frontier processing and configurable global/per-domain concurrency.
-- [x] Discover internal URLs from a seed URL
-  - Crawls links discovered from fetched HTML and keeps the seed-to-page traversal bounded by depth and page limits.
-- [x] Canonicalize URLs
-  - Normalizes HTTP(S) scheme/host/path, resolves relative URLs, preserves query strings, and removes fragments.
-- [x] Deduplicate URLs
-  - Canonical URLs are tracked across queued, visited, and discovered candidates so duplicate links are fetched once.
-- [x] Support max pages
-  - Enforces a strict returned-page budget, including concurrent frontier processing and include-pattern scenarios.
-- [x] Support max depth
-  - Traversal only expands links while the current page depth is below the configured maximum.
-- [x] Support allowed domains
-  - Defaults to same-domain crawling and supports an explicit allowed-domain set for bounded cross-domain crawling.
-- [x] Support include/exclude URL patterns
-  - Applies glob-style include/exclude filters to candidate URLs while retaining seed fetching for discovery.
-- [x] Respect robots policy
-  - Reuses the existing acquisition layer, including `PageFetcher` robots enforcement; blocked URLs never reach the HTTP client.
-- [x] Reuse acquisition and extraction layers
-  - Fetches through `AcquisitionStrategy`/`FetchRequest` and returns `FetchedPage` objects that can be processed directly by the existing `PageParser`/extraction pipeline.
-- [x] Implement bounded crawler rather than Firecrawl-scale distributed crawling
-  - Uses a local bounded executor and domain limiter; no distributed or unbounded crawl scheduling is introduced.
-
-## PHASE 11 — External Scraping Provider Adapters
-
-- [x] Define ExternalFetcher interface
-  - Added a provider-neutral `ExternalFetcher` protocol returning the existing `FetchedPage` model.
-- [x] Define provider-neutral request/response contract
-  - Added immutable `ExternalFetchRequest` with URL, optional rendering, and optional timeout controls; adapters normalize responses to `FetchedPage`.
-- [x] Evaluate Firecrawl integration
-  - Added an optional Firecrawl adapter using the documented v2 scrape endpoint and HTML response mapping; API credentials are required only when the adapter is instantiated.
-- [x] Evaluate Scrape.do integration
-  - Added an optional Scrape.do adapter with documented token/URL parameters, optional rendering, timeout mapping, and resolved-URL handling.
-- [x] Evaluate Scrapingdog integration
-  - Added an optional Scrapingdog adapter with documented API-key/URL parameters and `dynamic=true` rendering support; no undocumented per-request timeout parameter is introduced.
-- [x] Keep external providers optional
-  - Provider modules are independently importable and are not instantiated by the default acquisition path; credentials are not required for local HTTP/browser operation.
-- [x] Do not make any external provider mandatory for local/self-hosted usage
-  - `ScraperEngine` continues to use the existing local HTTP/browser acquisition flow by default, with no external service dependency.
-- [x] Ensure external providers cannot silently bypass robots/policy decisions
-  - Added `PolicyAwareExternalFetcher`, which checks the existing robots policy and request-delay policy before invoking an external provider; blocked or failed policy checks prevent provider invocation.
-
-## PHASE 12 — Specialized Source Adapters
-
-**Goal:** Build specialized public-page parsers/adapters for Google Maps, Justdial, OLX, and LinkedIn, all normalized into the common `Lead` model.
-
-- [x] Define SourceAdapter architecture
-  - Common `SearchRequest → SourceAdapter → list[Lead]` contract.
-- [x] Build Google Maps browser parser
-  - Playwright for public-page rendering.
-  - BeautifulSoup for rendered HTML parsing.
-  - Real-page fixture and parser regression tests.
-  - Detect challenge/block pages and stop safely; never bypass CAPTCHA or bot protections.
-- [x] Build Justdial specialized parser
-  - Audit public search/listing DOM.
-  - Implement Playwright + BeautifulSoup parsing where required.
-  - Normalize results into `Lead`.
-  - Add fixtures and focused tests.
-- [ ] Build OLX specialized parser
-  - Audit public listing/search DOM.
-  - Implement parser and `Lead` normalization.
-  - Add fixtures and focused tests.
-- [ ] Build LinkedIn specialized parser
-  - Parse publicly accessible pages only.
-  - Normalize profile/company data into `Lead`.
-  - Login/restricted/challenge pages must stop safely.
-  - Add fixtures and focused tests.
-- [ ] Common parser validation
-  - Handle missing fields safely.
-  - Respect requested result limits.
-  - Deduplicate source results.
-  - Preserve source URLs/source names.
-  - Detect challenge/block pages.
-  - Add synthetic and real-page fixture regression coverage where practical.
-- [ ] Integrate all specialized adapters
-  - Register adapters in `SourceAdapterRegistry`.
-  - Verify source selection resolves to the correct specialized parser.
-  - Run focused and full regression tests.
-- [ ] Document specialized source adapters and public-access boundaries
-- [ ] Complete Phase 12 tracker + git checkpoint
-
-## PHASE 13 — Anti-Blocking / Operational Resilience
-
-- [x] Build failure taxonomy first
-- [x] Detect 403 / 429 / CAPTCHA / bot-block / challenge pages
-- [x] Tune retries and throttling from observed evidence
-- [x] Evaluate browser fallback before proxy infrastructure
-- [x] Evaluate external provider fallback before owning proxy infrastructure
-- [x] Residential proxy support remains conditional
-- [x] Do not build an in-house CAPTCHA-solving system
-- [x] Do not build residential proxy infrastructure in v1.0.2
-
-## PHASE 14 — Observability & Run Metrics
-
-- [x] Design DuckDB run_metrics table
-- [x] Store run timing metrics
-- [x] Store discovery/fetch/parse/lead counts
-- [x] Store failure categories
-- [x] Store browser/external fallback counts
-- [x] Store cache hit/miss counts
-- [x] Store provider information
-- [x] Enable historical performance comparison
-- [x] Keep monitoring lightweight and local-first
-
-## PHASE 15 — Batch Processing
-
-- [x] Design bounded batch fetch API
-- [x] Reuse concurrency controls
-- [x] Preserve per-domain limits
-- [x] Preserve failure isolation
-- [x] Benchmark batch throughput
-
-## PHASE 16 — Test & Benchmark Matrix
-
-- [x] Normal static HTML workload
-- [x] JS-heavy workload
-- [x] Empty/thin content workload
-- [x] Blocked/rate-limited workload
-- [x] Repeated URL workload
-- [x] Large URL batch workload
-- [x] Generic extraction workload
-- [x] Structured-data extraction workload
-- [x] Location-quality workload
-- [x] Sequential vs concurrent comparison
-- [x] HTTP vs browser comparison
-- [x] Native vs external-provider comparison
-- [x] Cache vs no-cache comparison
-
-## PHASE 17 — Documentation & Public API
-
-- [x] Document acquisition strategies
-- [x] Document provider configuration
-- [x] Document browser requirements
-- [x] Document crawl limits
-- [x] Document caching behavior
-- [x] Document external-provider integrations
-- [x] Document robots/policy behavior
-- [x] Document failure categories
-- [x] Document migration/compatibility impact
-- [x] Keep README and docs aligned with implemented behavior
-
-## DEFERRED — v1.0.3+
-
-- [ ] Background job queue
-- [ ] Webhook delivery
-- [ ] Persistent browser sessions
-- [ ] Advanced browser workflows
-- [ ] AI-first extraction/agent workflows
-- [ ] Large-scale distributed crawling
-- [ ] Extensive JustDial parser
-- [ ] Extensive OLX parser
-- [ ] Residential proxy rotation
-- [ ] In-house CAPTCHA solving
-- [ ] Firecrawl-scale cloud orchestration
-
-## v1.0.2 Architecture Decision
-
-The locked architectural direction is:
+The adapter should implement this conceptual pipeline:
 
 ```text
-Search / URL / Crawl Request
+Road / area / route input
         ↓
-Discovery / Source Router
+Imagery availability / metadata lookup
         ↓
-Discovery Cache
+Eligible Street View imagery acquisition
         ↓
-DiscoveredPage[]
+Image preprocessing
         ↓
-Relevance / Policy Filter
+Text detection / OCR
         ↓
-Acquisition Router
+Raw OCR text
         ↓
-HTTP → Content Quality → Browser → External Provider
+Phone / name / category / address extraction
         ↓
-Content / Extraction Router
+Candidate Lead
         ↓
-Structured Data / Site Parser / Generic Parser
+Location validation
         ↓
-Lead Quality + Location Validation
+Quality validation
         ↓
-Normalize + Deduplicate
+Normalization
         ↓
-DuckDB
-        +
-Run Metrics
+Existing DB identity check
+        ↓
+NEW lead → save
+EXISTING lead → skip
+````
+
+## Critical Incremental-Collection Rule
+
+The meaning of `--limit` for this adapter must be NEW valid leads, not the number of imagery frames processed and not the number of OCR candidates encountered.
+
+Example:
+
+```text
+OCR candidate 1 → existing DB → SKIP
+OCR candidate 2 → existing DB → SKIP
+OCR candidate 3 → valid + new → SAVE #1
+OCR candidate 4 → existing DB → SKIP
+OCR candidate 5 → valid + new → SAVE #2
+...
+continue until 5 NEW valid leads are collected
+or the searchable imagery/input is exhausted
 ```
 
-## v1.0.2 Non-Negotiable Principles
+If `--limit 5` is requested and the first five discovered shops already exist in the persistent database, the adapter must continue searching for additional candidates rather than returning those duplicates.
 
-- [ ] HTTP remains the cheapest/default acquisition path
-- [ ] Browser rendering is fallback-driven, not browser-first
-- [ ] External scraping services remain optional adapters
-- [ ] Proxy infrastructure is evidence-driven, not assumed
-- [ ] Deterministic extraction remains preferred over AI extraction
-- [ ] Existing public APIs remain compatible wherever practical
-- [ ] Performance decisions require benchmark evidence
-- [ ] Site-specific implementations require demonstrated value
-- [ ] Robots and project policy are never silently bypassed
-- [ ] Local/self-hosted operation remains a first-class mode
+This is an OCR-adapter requirement and must not be implemented by modifying the existing Google Maps Browser adapter.
 
-## R&D Status
+## Persistent Database Rule
 
-- **Roadmap:** LOCKED
-- **Implementation:** NOT STARTED
-- **Current priority:** Phase 0 — baseline benchmark and validation
-- **Next gate:** baseline evidence → implementation sequence confirmation
+The OCR adapter must use the existing repository architecture wherever possible.
+
+Expected flow:
+
+```text
+Google Maps OCR adapter
+        ↓
+Lead normalization / quality
+        ↓
+Persistent LeadRepository
+        ↓
+Existing database
+```
+
+The adapter must not create a fresh isolated database on every run when a persistent database path/repository is configured.
+
+Preferred identity hierarchy:
+
+1. Source place ID, when legitimately available.
+2. Normalized phone number.
+3. Normalized website.
+4. Normalized name + location/address.
+5. Geographic proximity combined with normalized business identity where appropriate.
+
+The exact identity strategy must follow the existing repository/normalizer design rather than creating a second incompatible deduplication system.
+
+## Phase 1 — Existing Architecture Audit
+
+* [x] Inspect `SearchRequest` and `Lead` contracts.
+* [x] Inspect existing source-adapter interface/protocol.
+* [x] Inspect `google_maps.py`.
+* [x] Inspect `google_maps_browser.py`.
+* [x] Inspect repository implementation and persistence flow.
+* [x] Inspect `LeadNormalizer` and existing identity/deduplication behavior.
+* [x] Inspect `LeadQuality`.
+* [x] Inspect location validation.
+* [x] Inspect CLI source registration and argument parsing.
+* [x] Inspect existing adapter tests and fixture conventions.
+* [x] Confirm exact files that need modification before changing anything.
+
+## Phase 2 — New Adapter Skeleton
+
+* [x] Create `google_maps_ocr.py` in the existing source-adapter location.
+* [x] Register source name `google-maps-ocr` without changing existing source names.
+* [x] Implement the existing adapter contract.
+* [x] Ensure `search(request)` returns the expected `list[Lead]` contract.
+* [x] Keep imagery/OCR-specific logic inside the new adapter or dedicated OCR modules.
+* [x] Do not copy/paste unrelated browser-adapter logic unnecessarily.
+
+## Phase 3 — Input and Road Sampling
+
+* [ ] Define the supported initial input: location/road/area.
+* [ ] Determine how route/path input will be represented without breaking existing CLI behavior.
+* [ ] Add bounded sampling of road positions rather than requesting imagery continuously at every meter.
+* [ ] Define configurable sampling distance.
+* [ ] Check imagery availability/metadata before requesting imagery where supported.
+* [ ] Handle unavailable imagery gracefully.
+* [ ] Prevent uncontrolled imagery requests.
+
+## Phase 4 — Imagery Acquisition
+
+* [ ] Implement imagery acquisition using an appropriate Google-supported Street View/API mechanism.
+* [ ] Do not depend on scraping Google Maps web UI screenshots as the core imagery source.
+* [ ] Use metadata/availability checks before imagery acquisition where applicable.
+* [ ] Handle API errors, missing imagery, timeouts, and quota-related failures cleanly.
+* [ ] Do not implement automatic proxy/IP rotation or anti-bot bypass behavior.
+* [ ] Respect applicable Google Maps/Street View API terms, quotas, and imagery usage restrictions.
+* [ ] Do not assume unlimited bulk downloading/storage/indexing of Street View imagery is permitted.
+
+## Phase 5 — View / Heading Strategy
+
+* [ ] Determine useful camera headings for each sampling point.
+* [ ] Support the road-facing directions needed to observe roadside businesses.
+* [ ] Avoid unnecessary duplicate imagery requests.
+* [ ] Define configurable heading/FOV/pitch behavior where supported.
+* [ ] Keep the design tunable for different road geometries.
+
+## Phase 6 — Image Preprocessing
+
+* [ ] Create an OCR preprocessing pipeline.
+* [ ] Support resizing/cropping when beneficial.
+* [ ] Improve readability of small shop boards where technically appropriate.
+* [ ] Avoid transformations that create misleading OCR results.
+* [ ] Keep preprocessing deterministic enough for automated tests.
+
+## Phase 7 — OCR Engine
+
+* [ ] Introduce a replaceable OCR interface.
+* [ ] Start with one practical OCR engine.
+* [ ] Keep the design open for Tesseract, EasyOCR, PaddleOCR, or another suitable engine.
+* [ ] Capture OCR text and confidence information when available.
+* [ ] Support Hindi/English or multilingual board text where the selected engine permits it.
+
+## Phase 8 — Board / Text Extraction
+
+* [ ] Detect useful text from OCR output.
+* [ ] Extract phone numbers using context-aware rules.
+* [ ] Prefer phone-like text near labels such as mobile/contact/tel when available.
+* [ ] Avoid treating every arbitrary 10-digit number as a phone number.
+* [ ] Extract business/shop names where sufficiently reliable.
+* [ ] Extract category/type when board text provides useful evidence.
+* [ ] Extract address/location text only when sufficiently reliable.
+* [ ] Preserve useful OCR evidence for debugging where permitted.
+
+## Phase 9 — Multiple Frames / Same Shop
+
+A single shop may appear in multiple imagery frames.
+
+Example:
+
+```text
+Frame 1 → SHARMA MOBILE
+Frame 2 → SHARMA MOB...
+Frame 3 → 9876543210
+Frame 4 → SHARMA MOBILE + number
+                ↓
+        ONE business lead
+```
+
+* [ ] Group/merge evidence from multiple frames where appropriate.
+* [ ] Combine name and phone evidence only when there is sufficient evidence they belong to the same business.
+* [ ] Prevent one physical shop from becoming multiple leads merely because it appears in multiple frames.
+
+## Phase 10 — Lead Construction and Validation
+
+* [ ] Convert reliable OCR evidence into the existing `Lead` model.
+* [ ] Reuse existing location validation where applicable.
+* [ ] Reuse existing `LeadQuality` where applicable.
+* [ ] Reuse existing normalization behavior where applicable.
+* [ ] Do not create a parallel incompatible Lead schema.
+* [ ] Reject obviously unusable OCR fragments such as generic words with no meaningful business/contact evidence.
+
+## Phase 11 — Existing DB Skip and Incremental Search
+
+* [ ] Check persistent database/repository identity before accepting a candidate as new.
+* [ ] Existing lead → skip.
+* [ ] New valid lead → accept/save.
+* [ ] Continue scanning candidates after duplicates.
+* [ ] Stop when the requested NEW-lead limit is reached or searchable imagery/input is exhausted.
+* [ ] Ensure repeated runs against the same persistent DB discover subsequent new leads.
+* [ ] Do not rely only on final-output deduplication; duplicates must be skipped during collection so additional candidates can be discovered.
+
+## Phase 12 — CLI
+
+Initial source:
+
+```text
+--source google-maps-ocr
+```
+
+Potential OCR-specific options:
+
+```text
+--ocr-engine
+--ocr-confidence
+--sample-distance
+--source-timeout
+```
+
+Reuse existing options where appropriate:
+
+```text
+--limit
+--db-path
+--save-db
+--json
+--csv
+```
+
+Route-specific options should only be added after the actual supported route/input design is finalized.
+
+## Phase 13 — Testing
+
+* [ ] Add adapter contract tests.
+* [ ] Add OCR text extraction tests.
+* [ ] Add phone extraction tests.
+* [ ] Add Hindi/English OCR parsing fixtures where available.
+* [ ] Add multiple-frame merge tests.
+* [ ] Add existing-database duplicate tests.
+* [ ] Add incremental `--limit` behavior tests.
+* [ ] Add imagery-unavailable tests.
+* [ ] Add API/timeout/error handling tests.
+* [ ] Keep normal unit tests independent of live Google services.
+* [ ] Add controlled integration/real-world tests separately.
+
+## Phase 14 — Real-World Validation
+
+* [ ] Select a small controlled road/area.
+* [ ] Verify imagery availability.
+* [ ] Run OCR on a bounded number of sampling points.
+* [ ] Inspect OCR accuracy for visible shop boards.
+* [ ] Verify phone extraction.
+* [ ] Verify shop-name extraction.
+* [ ] Verify duplicate merging across frames.
+* [ ] Verify persistent DB insertion.
+* [ ] Run the same search again with the same DB.
+* [ ] Confirm existing leads are skipped and subsequent new leads are searched.
+* [ ] Confirm `--limit N` produces up to N genuinely new valid leads.
+
+## Phase 15 — Documentation
+
+* [ ] Document `google-maps-ocr` in CLI documentation.
+* [ ] Document API/configuration prerequisites.
+* [ ] Document OCR engine setup.
+* [ ] Document sampling behavior.
+* [ ] Document incremental/persistent DB behavior.
+* [ ] Document known OCR limitations.
+* [ ] Document imagery/API usage restrictions and relevant Google requirements.
+* [ ] Add usage examples only after implementation is verified.
+
+## Phase 16 — Release Readiness
+
+* [ ] All new adapter tests pass.
+* [ ] Existing Google Maps API tests pass.
+* [ ] Existing Google Maps Browser tests pass.
+* [ ] Full test suite passes.
+* [ ] `python -m compileall scraper run_scraper.py` passes.
+* [ ] `git diff --check` passes.
+* [ ] Documentation build passes when documentation is changed.
+* [ ] Real-world validation completed separately from deterministic tests.
+* [ ] Release notes/tracker updated only after implementation is actually complete.
+
+## Explicit Non-Goals
+
+* Do NOT modify `google-maps` behavior merely to implement OCR.
+* Do NOT modify `google-maps-browser` behavior merely to implement OCR.
+* Do NOT merge OCR into the current Google Maps Browser incremental-search implementation.
+* Do NOT create a second incompatible Lead model.
+* Do NOT use final-output deduplication as a substitute for incremental candidate skipping.
+* Do NOT implement blind proxy/IP rotation to bypass anti-bot or access controls.
+* Do NOT blindly scrape Google Maps web UI screenshots as the core imagery source.
+* Do NOT assume unlimited bulk downloading/storage/indexing of Street View imagery is permitted.
+* Do NOT mark a phase complete without actually implementing and testing it.
+
+## Current Progress
+
+### Completed
+
+* [x] Task separated from the existing Google Maps Browser incremental-fetch task.
+* [x] New adapter name fixed as `google-maps-ocr`.
+* [x] Persistent DB + incremental NEW-lead behavior defined.
+* [x] Phase-by-phase implementation roadmap defined.
+
+### In Progress
+
+* [ ] Phase 3 — Input and Road Sampling
+
+### Next Action
+
+* [ ] Define the initial location/road/area input and bounded road-sampling design.
+
+## Important Working Rule
+
+Work incrementally: inspect first, modify one logical file at a time, run the relevant test after each meaningful change, inspect the diff, and only then continue to the next file. Do not perform broad unrelated refactors.
